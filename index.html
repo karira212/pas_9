@@ -1,0 +1,2786 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CBT Informatika — Sistem Evaluasi Daring & SQLite</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- SQL.js (SQLite compiled to WebAssembly) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .font-mono-code {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .option-card {
+            transition: all 0.15s ease-in-out;
+        }
+        .option-card:hover {
+            border-color: #4f46e5;
+            background-color: #eef2ff;
+        }
+        .option-selected {
+            border-color: #4f46e5 !important;
+            background-color: #e0e7ff !important;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.22);
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: #ef4444; }
+            50% { border-color: #fca5a5; }
+        }
+        .timer-warning {
+            animation: pulse-border 1s infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- ==================== HEADER UTAMA ==================== -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40 border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+            <!-- Brand / Judul -->
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-2 rounded-xl border border-indigo-400/30 shadow-inner">
+                    <i class="fa-solid fa-laptop-code text-lg text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm sm:text-lg tracking-tight leading-tight">CBT INFORMATIKA</h1>
+                    <p class="text-[11px] sm:text-xs text-slate-400 hidden sm:block">Media Sosial & Konten Digital • 60 Soal (C3 & C4)</p>
+                </div>
+            </div>
+
+            <!-- Kontrol Kanan: Status SQLite, Tombol Full Screen, Tombol Admin -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <!-- Indikator Status SQLite -->
+                <div id="sqliteStatusBadge" class="hidden md:flex items-center space-x-1.5 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full text-xs font-medium">
+                    <span id="sqliteDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="sqliteStatusText">Menyiapkan SQLite...</span>
+                </div>
+
+                <!-- Tombol Toggle Full Screen -->
+                <button type="button" id="btnToggleFullscreen" onclick="toggleFullScreen()" title="Masuk / Keluar Mode Full Screen" class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 px-3 py-2 rounded-xl text-xs font-semibold transition">
+                    <i id="iconFullscreen" class="fa-solid fa-expand text-sky-400"></i>
+                    <span id="textFullscreen" class="hidden sm:inline">Full Screen</span>
+                </button>
+
+                <!-- Tombol Login Admin -->
+                <button type="button" id="btnOpenAdminLogin" onclick="openAdminModal()" class="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition shadow-sm">
+                    <i class="fa-solid fa-user-shield"></i>
+                    <span>Login Admin</span>
+                </button>
+
+                <!-- Tombol Kembali ke Beranda (Saat di Admin) -->
+                <button type="button" id="btnBackHomeHeader" onclick="logoutAdmin()" class="hidden items-center space-x-1.5 bg-slate-700 hover:bg-slate-600 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition">
+                    <i class="fa-solid fa-house"></i>
+                    <span>Beranda</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== NOTIFIKASI TOAST GLOBAL ==================== -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- ==================== KONTEN UTAMA ==================== -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- ==================== VIEW 1: LOGIN / IDENTITAS SISWA ==================== -->
+        <section id="login-screen" class="max-w-4xl mx-auto mt-2 sm:mt-5">
+            <div class="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+                <!-- Kolom Kiri: Kisi-kisi & Informasi Token -->
+                <div class="lg:col-span-5 bg-gradient-to-br from-indigo-700 via-indigo-800 to-slate-900 p-6 sm:p-8 text-white flex flex-col justify-between">
+                    <div>
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-indigo-100 text-xs font-semibold mb-4">
+                            <i class="fa-solid fa-shield-halved"></i> Ujian Berbasis Komputer
+                        </span>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight">Penilaian Sumatif Informatika</h2>
+                        <p class="mt-2.5 text-indigo-200 text-sm leading-relaxed">
+                            Evaluasi digital terintegrasi database <strong>SQLite</strong> dengan mode <strong>Full Screen</strong> otomatis dan pengacakan soal & opsi jawaban.
+                        </p>
+
+                        <!-- Kartu Token Ujian -->
+                        <div class="mt-5 bg-white/10 border border-white/20 rounded-2xl p-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs uppercase tracking-wider text-indigo-200 font-semibold">Token Ujian Aktif</span>
+                                <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">SIAP DIGUNAKAN</span>
+                            </div>
+                            <div class="mt-1.5 flex items-center justify-between">
+                                <span class="font-mono-code text-2xl font-extrabold tracking-widest text-amber-300">INF2026</span>
+                                <button type="button" onclick="fillTokenQuick()" class="text-xs bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-lg font-semibold transition">
+                                    Gunakan Token
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Rincian Soal -->
+                        <div class="mt-5 space-y-2.5 text-xs text-indigo-100">
+                            <div class="flex items-start gap-2.5 bg-slate-900/40 p-3 rounded-xl">
+                                <i class="fa-solid fa-list-ol text-amber-400 mt-0.5"></i>
+                                <div>
+                                    <strong class="text-white block">Total 60 Butir Pilihan Ganda:</strong>
+                                    • Pengaruh Media Sosial: 20 Soal (C3) & 10 Soal (C4)<br>
+                                    • Konten Digital: 20 Soal (C3) & 10 Soal (C4)
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-2.5 bg-slate-900/40 p-3 rounded-xl">
+                                <i class="fa-solid fa-expand text-sky-400 mt-0.5"></i>
+                                <div>
+                                    <strong class="text-white block">Pengawasan Mode Full Screen:</strong>
+                                    Ujian berjalan dalam layar penuh (90 menit). Keluar layar penuh atau berpindah tab akan tercatat otomatis.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-4 border-t border-white/15 flex items-center justify-between text-xs text-indigo-200">
+                        <span>KKM / KKTP: <strong>75</strong></span>
+                        <span>Durasi: <strong>90 Menit</strong></span>
+                    </div>
+                </div>
+
+                <!-- Kolom Kanan: Form Identitas Peserta -->
+                <div class="lg:col-span-7 p-6 sm:p-9 flex flex-col justify-center">
+                    <div class="mb-5">
+                        <h3 class="text-xl font-extrabold text-slate-900">Data Identitas Peserta</h3>
+                        <p class="text-sm text-slate-500 mt-1">Isi identitas di bawah ini untuk langsung memuat 60 soal ujian.</p>
+                    </div>
+
+                    <form id="studentLoginForm" onsubmit="handleStartExam(event)" class="space-y-4">
+                        <div>
+                            <label for="inputNama" class="block text-sm font-semibold text-slate-700 mb-1">Nama Lengkap Siswa <span class="text-rose-500">*</span></label>
+                            <input type="text" id="inputNama" required placeholder="Contoh: Ahmad Fauzan Pratama"
+                                class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-sm font-medium">
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label for="inputNis" class="block text-sm font-semibold text-slate-700 mb-1">NIS / Nomor Peserta <span class="text-rose-500">*</span></label>
+                                <input type="text" id="inputNis" required placeholder="Contoh: 202610045"
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-sm font-medium">
+                            </div>
+                            <div>
+                                <label for="inputKelas" class="block text-sm font-semibold text-slate-700 mb-1">Kelas <span class="text-rose-500">*</span></label>
+                                <select id="inputKelas" required
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-sm font-medium bg-white">
+                                    <option value="">-- Pilih Kelas --</option>
+                                    <option value="X-1">Kelas X-1</option>
+                                    <option value="X-2">Kelas X-2</option>
+                                    <option value="X-3">Kelas X-3</option>
+                                    <option value="X-4">Kelas X-4</option>
+                                    <option value="XI-1">Kelas XI-1</option>
+                                    <option value="XI-2">Kelas XI-2</option>
+                                    <option value="XI-3">Kelas XI-3</option>
+                                    <option value="XII-1">Kelas XII-1</option>
+                                    <option value="XII-2">Kelas XII-2</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="inputToken" class="block text-sm font-semibold text-slate-700 mb-1">Token Ujian <span class="text-rose-500">*</span></label>
+                            <div class="relative">
+                                <input type="text" id="inputToken" value=" " required placeholder="Masukkan token: "
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-sm font-mono-code font-bold uppercase tracking-wider">
+                                <span class="absolute right-3.5 top-3 text-xs text-slate-400 font-medium"> </span>
+                            </div>
+                            <p id="tokenErrorMsg" class="hidden text-xs text-rose-600 font-semibold mt-1.5">
+                                <i class="fa-solid fa-circle-exclamation mr-1"></i> Token ujian tidak valid! Gunakan token: <strong>INF2026</strong>
+                            </p>
+                        </div>
+
+                        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
+                            <i class="fa-solid fa-circle-info text-amber-600 mt-0.5 text-sm"></i>
+                            <p>Semua pilihan jawaban (A–E) memiliki panjang kalimat seimbang dan diacak untuk setiap siswa. Bacalah soal dengan cermat sebelum memilih jawaban.</p>
+                        </div>
+
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-indigo-600/25 transition flex items-center justify-center space-x-2 text-sm sm:text-base">
+                            <i class="fa-solid fa-expand"></i>
+                            <span>Mulai Ujian & Masuk Full Screen</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== VIEW 2: RUANG UJIAN CBT ==================== -->
+        <section id="exam-screen" class="hidden">
+            <!-- Bar Info Peserta, Ukuran Font, Pelanggaran & Timer -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-5 flex flex-wrap items-center justify-between gap-4">
+                <!-- Identitas Siswa -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-11 h-11 rounded-xl bg-indigo-600 text-white font-extrabold flex items-center justify-center text-lg shadow-sm" id="avatarInitial">
+                        S
+                    </div>
+                    <div>
+                        <div class="font-bold text-slate-900 text-sm sm:text-base" id="displayStudentName">Nama Siswa</div>
+                        <div class="text-xs text-slate-500 font-medium" id="displayStudentMeta">NIS: - | Kelas: -</div>
+                    </div>
+                </div>
+
+                <!-- Kontrol Tengah & Kanan -->
+                <div class="flex flex-wrap items-center gap-3 ml-auto">
+                    <!-- Pengatur Ukuran Font Soal (S / M / L) -->
+                    <div class="hidden sm:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200" title="Ukuran Teks Soal">
+                        <span class="text-[11px] font-semibold text-slate-500 px-2">Font:</span>
+                        <button type="button" onclick="setQuestionFontSize('sm')" id="fontBtn-sm" class="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 hover:bg-white transition">S</button>
+                        <button type="button" onclick="setQuestionFontSize('md')" id="fontBtn-md" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-indigo-700 shadow-sm transition">M</button>
+                        <button type="button" onclick="setQuestionFontSize('lg')" id="fontBtn-lg" class="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 hover:bg-white transition">L</button>
+                    </div>
+
+                    <!-- Counter Progres & Peringatan Layar -->
+                    <div class="text-right hidden md:block px-2">
+                        <div class="text-xs text-slate-500">Terjawab: <strong class="text-emerald-600"><span id="answeredCountHeader">0</span>/60</strong></div>
+                        <div class="text-[11px] text-slate-500">Keluar Layar: <strong id="violationCountBadge" class="text-slate-700">0x</strong></div>
+                    </div>
+
+                    <!-- Timer -->
+                    <div id="timerBox" class="flex items-center space-x-2.5 bg-slate-900 text-white px-4 py-2 rounded-xl border-2 border-slate-800 shadow-sm">
+                        <i class="fa-regular fa-clock text-amber-400 text-base"></i>
+                        <div>
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 leading-none">Sisa Waktu</div>
+                            <div id="timerDisplay" class="font-mono-code font-bold text-base sm:text-lg tracking-wider leading-tight">90:00</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grid Utama: Area Soal (8 Kolom) & Navigasi Nomor Soal (4 Kolom) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                <!-- Area Soal -->
+                <div class="lg:col-span-8 bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-8">
+                    <!-- Header Nomor, Tema & Level -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 pb-4 mb-5 border-b border-slate-100">
+                        <div class="flex items-center space-x-2">
+                            <span class="bg-indigo-600 text-white font-bold text-sm px-3.5 py-1.5 rounded-xl shadow-sm">
+                                Soal No. <span id="currentQuestionNum">1</span> <span class="text-indigo-200 font-normal">/ 60</span>
+                            </span>
+                            <span id="questionTopicBadge" class="bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200">
+                                Pengaruh Media Sosial
+                            </span>
+                        </div>
+                        <span id="questionLevelBadge" class="bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold px-3 py-1 rounded-full">
+                            Level C3 (Aplikasi)
+                        </span>
+                    </div>
+
+                    <!-- Teks Pertanyaan -->
+                    <div id="questionText" class="text-slate-800 text-base leading-relaxed font-medium mb-6 select-none">
+                        Memuat soal...
+                    </div>
+
+                    <!-- Daftar Opsi Pilihan Ganda A - E -->
+                    <div id="optionsContainer" class="space-y-3 mb-8">
+                        <!-- Diisi dinamis oleh JS -->
+                    </div>
+
+                    <!-- Tombol Kontrol Navigasi Bawah -->
+                    <div class="pt-5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                        <button type="button" id="btnPrev" onclick="prevQuestion()" class="flex items-center space-x-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed">
+                            <i class="fa-solid fa-arrow-left"></i>
+                            <span>Sebelumnya</span>
+                        </button>
+
+                        <button type="button" id="btnDoubt" onclick="toggleDoubt()" class="flex items-center space-x-2 px-4 py-2.5 rounded-xl border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-sm transition">
+                            <input type="checkbox" id="checkboxDoubt" class="w-4 h-4 accent-amber-500 pointer-events-none">
+                            <span>Ragu-ragu</span>
+                        </button>
+
+                        <button type="button" id="btnNext" onclick="nextQuestion()" class="flex items-center space-x-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition shadow-sm">
+                            <span>Selanjutnya</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+
+                        <button type="button" id="btnFinishEarly" onclick="openConfirmFinishModal()" class="hidden items-center space-x-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition shadow-sm">
+                            <i class="fa-solid fa-check-double"></i>
+                            <span>Selesai & Kumpulkan</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Panel Navigasi Nomor Soal (1 - 60) -->
+                <div class="lg:col-span-4 bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sticky top-20">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-grip text-indigo-600"></i> Navigasi Nomor Soal
+                        </h3>
+                        <span class="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">60 Butir</span>
+                    </div>
+
+                    <!-- Legenda Warna -->
+                    <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-600 mb-4 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="w-3.5 h-3.5 rounded bg-emerald-500 inline-block"></span>
+                            <span>Sudah Dijawab</span>
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            <span class="w-3.5 h-3.5 rounded bg-amber-400 inline-block"></span>
+                            <span>Ragu-ragu</span>
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            <span class="w-3.5 h-3.5 rounded bg-white border border-slate-300 inline-block"></span>
+                            <span>Belum Dijawab</span>
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            <span class="w-3.5 h-3.5 rounded ring-2 ring-indigo-600 bg-indigo-100 inline-block"></span>
+                            <span>Sedang Dibuka</span>
+                        </div>
+                    </div>
+
+                    <!-- Grid 60 Nomor -->
+                    <div id="questionNavGrid" class="grid grid-cols-6 sm:grid-cols-10 lg:grid-cols-6 gap-1.5 max-h-[340px] overflow-y-auto pr-1 mb-4">
+                        <!-- Tombol 1-60 di-render via JS -->
+                    </div>
+
+                    <button type="button" onclick="openConfirmFinishModal()" class="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>Selesai & Kumpulkan Ujian</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== VIEW 3: HASIL UJIAN SISWA ==================== -->
+        <section id="result-screen" class="hidden max-w-4xl mx-auto mt-2">
+            <div class="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+                <!-- Header Hasil -->
+                <div class="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 p-6 sm:p-8 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <div class="inline-flex items-center space-x-1.5 bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 px-3 py-1 rounded-full text-xs font-semibold mb-2">
+                            <i class="fa-solid fa-database"></i>
+                            <span>Tersimpan Otomatis ke Database SQLite</span>
+                        </div>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold">Laporan Hasil Evaluasi Siswa</h2>
+                        <p class="text-indigo-200 text-sm mt-1">Mata Pelajaran: Informatika (60 Butir Soal C3 & C4)</p>
+                    </div>
+                    <div class="bg-white text-slate-900 rounded-2xl px-6 py-4 text-center shadow-lg shrink-0">
+                        <div class="text-xs font-bold uppercase tracking-wider text-slate-500">Nilai Akhir</div>
+                        <div id="resultScoreBig" class="text-4xl sm:text-5xl font-black text-indigo-700">0</div>
+                        <div id="resultPredicate" class="text-xs font-bold mt-1 px-3 py-0.5 rounded-full bg-indigo-100 text-indigo-800 inline-block">Status</div>
+                    </div>
+                </div>
+
+                <div class="p-6 sm:p-8 space-y-6">
+                    <!-- Identitas & Ringkasan Waktu -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                        <div class="space-y-1.5 text-sm">
+                            <div class="flex justify-between"><span class="text-slate-500">Nama Lengkap:</span> <span id="resNama" class="font-bold text-slate-900">-</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">NIS / Nomor Peserta:</span> <span id="resNis" class="font-mono-code font-bold text-slate-900">-</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Kelas:</span> <span id="resKelas" class="font-bold text-indigo-700">-</span></div>
+                        </div>
+                        <div class="space-y-1.5 text-sm border-t md:border-t-0 md:border-l border-slate-200 pt-3 md:pt-0 md:pl-4">
+                            <div class="flex justify-between"><span class="text-slate-500">Waktu Selesai:</span> <span id="resTimestamp" class="font-semibold text-slate-800">-</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Durasi Pengerjaan:</span> <span id="resDuration" class="font-semibold text-slate-800">-</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Log Keluar Layar/Tab:</span> <span id="resViolations" class="font-bold text-slate-800">0 kali</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Kartu Benar, Salah, Kosong -->
+                    <div class="grid grid-cols-3 gap-3 sm:gap-4 text-center">
+                        <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                            <div class="text-xs font-semibold text-emerald-700">Jawaban Benar</div>
+                            <div id="resCorrect" class="text-2xl sm:text-3xl font-extrabold text-emerald-700 mt-1">0</div>
+                            <div class="text-[11px] text-emerald-600">dari 60 soal</div>
+                        </div>
+                        <div class="bg-rose-50 border border-rose-200 rounded-2xl p-4">
+                            <div class="text-xs font-semibold text-rose-700">Jawaban Salah</div>
+                            <div id="resWrong" class="text-2xl sm:text-3xl font-extrabold text-rose-700 mt-1">0</div>
+                            <div class="text-[11px] text-rose-600">butir soal</div>
+                        </div>
+                        <div class="bg-slate-100 border border-slate-200 rounded-2xl p-4">
+                            <div class="text-xs font-semibold text-slate-600">Tidak Dijawab</div>
+                            <div id="resUnanswered" class="text-2xl sm:text-3xl font-extrabold text-slate-700 mt-1">0</div>
+                            <div class="text-[11px] text-slate-500">butir soal</div>
+                        </div>
+                    </div>
+
+                    <!-- Rincian Capaian per Tema & Level Kognitif -->
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-simple text-indigo-600"></i> Rincian Capaian per Tema & Level Kognitif
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="topicBreakdownContainer">
+                            <!-- Diisi via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Reviu Status Jawaban Siswa (Collapsible) -->
+                    <div class="border border-slate-200 rounded-2xl overflow-hidden">
+                        <button type="button" onclick="toggleStudentReview()" class="w-full px-5 py-3.5 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-sm font-bold text-slate-800 transition">
+                            <span><i class="fa-solid fa-list-check text-indigo-600 mr-2"></i> Lihat Ringkasan Status Jawaban (60 Soal)</span>
+                            <i id="reviewChevron" class="fa-solid fa-chevron-down text-slate-500 transition-transform"></i>
+                        </button>
+                        <div id="studentReviewContainer" class="hidden p-4 max-h-80 overflow-y-auto divide-y divide-slate-100 text-xs">
+                            <!-- Diisi via JS -->
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                        <button type="button" onclick="backToHome()" class="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm transition flex items-center gap-2">
+                            <i class="fa-solid fa-rotate-left"></i>
+                            <span>Selesai & Kembali ke Halaman Awal</span>
+                        </button>
+                        <button type="button" onclick="openAdminModal()" class="px-5 py-2.5 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-semibold text-sm transition flex items-center gap-2">
+                            <i class="fa-solid fa-user-shield"></i>
+                            <span>Masuk Panel Admin (Unduh Rekap)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== VIEW 4: DASHBOARD ADMIN ==================== -->
+        <section id="admin-screen" class="hidden space-y-6">
+            <!-- Header Dashboard Admin -->
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-0.5 rounded-full border border-amber-300">ADMINISTRATOR</span>
+                        <span class="text-xs text-slate-500 font-mono-code">DB: sqlite_cbt_informatika.db</span>
+                    </div>
+                    <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">Panel Kontrol & Rekapitulasi Nilai CBT</h2>
+                    <p class="text-xs sm:text-sm text-slate-500">Kelola data hasil ujian dari database SQLite, unduh laporan Excel/CSV, dan audit 60 butir soal.</p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" onclick="exportResultsToCSV()" class="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition">
+                        <i class="fa-solid fa-file-excel"></i>
+                        <span>Download Excel (.csv)</span>
+                    </button>
+                    <button type="button" onclick="exportSQLiteBinary()" class="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition">
+                        <i class="fa-solid fa-database"></i>
+                        <span>Download DB (.sqlite)</span>
+                    </button>
+                    <button type="button" onclick="logoutAdmin()" class="flex items-center space-x-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                        <span>Keluar</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Kartu Statistik Ringkas -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <span class="text-xs font-semibold text-slate-500">Total Peserta Ujian</span>
+                    <div class="flex items-end justify-between mt-2">
+                        <span id="statTotal" class="text-3xl font-extrabold text-slate-900">0</span>
+                        <span class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><i class="fa-solid fa-users"></i></span>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <span class="text-xs font-semibold text-slate-500">Rata-Rata Nilai</span>
+                    <div class="flex items-end justify-between mt-2">
+                        <span id="statAvg" class="text-3xl font-extrabold text-indigo-600">0.0</span>
+                        <span class="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center"><i class="fa-solid fa-chart-line"></i></span>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <span class="text-xs font-semibold text-slate-500">Nilai Tertinggi</span>
+                    <div class="flex items-end justify-between mt-2">
+                        <span id="statMax" class="text-3xl font-extrabold text-emerald-600">0</span>
+                        <span class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-trophy"></i></span>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <span class="text-xs font-semibold text-slate-500">Nilai Terendah</span>
+                    <div class="flex items-end justify-between mt-2">
+                        <span id="statMin" class="text-3xl font-extrabold text-rose-600">0</span>
+                        <span class="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><i class="fa-solid fa-arrow-trend-down"></i></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Navigasi Admin -->
+            <div class="flex gap-2 border-b border-slate-200">
+                <button type="button" id="tabBtnResults" onclick="switchAdminTab('results')" class="px-5 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition">
+                    <i class="fa-solid fa-table-list mr-1.5"></i> Data Hasil Ujian (SQLite)
+                </button>
+                <button type="button" id="tabBtnAudit" onclick="switchAdminTab('audit')" class="px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition">
+                    <i class="fa-solid fa-magnifying-glass-chart mr-1.5"></i> Audit Bank Soal (60 Soal)
+                </button>
+            </div>
+
+            <!-- TAB 1: REKAP NILAI SQLITE -->
+            <div id="adminTabResults" class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+                    <div class="flex flex-wrap items-center gap-2.5 flex-1">
+                        <div class="relative min-w-[220px] flex-1 max-w-xs">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                            <input type="text" id="adminSearchInput" oninput="renderAdminTable()" placeholder="Cari nama atau NIS siswa..."
+                                class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-300 text-sm focus:border-indigo-600 outline-none">
+                        </div>
+                        <select id="adminClassFilter" onchange="renderAdminTable()" class="px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white outline-none">
+                            <option value="">Semua Kelas</option>
+                            <option value="X-1">Kelas X-1</option>
+                            <option value="X-2">Kelas X-2</option>
+                            <option value="X-3">Kelas X-3</option>
+                            <option value="X-4">Kelas X-4</option>
+                            <option value="XI-1">Kelas XI-1</option>
+                            <option value="XI-2">Kelas XI-2</option>
+                            <option value="XI-3">Kelas XI-3</option>
+                            <option value="XII-1">Kelas XII-1</option>
+                            <option value="XII-2">Kelas XII-2</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="insertSimulationData()" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-flask"></i> + Tambah Data Simulasi
+                        </button>
+                        <button type="button" onclick="openResetDbModal()" class="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-trash-can"></i> Hapus Semua Data
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-2xl border border-slate-200">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 text-xs uppercase">
+                                <th class="py-3.5 px-4 font-bold">No</th>
+                                <th class="py-3.5 px-4 font-bold">Waktu Selesai</th>
+                                <th class="py-3.5 px-4 font-bold">NIS</th>
+                                <th class="py-3.5 px-4 font-bold">Nama Siswa</th>
+                                <th class="py-3.5 px-4 font-bold">Kelas</th>
+                                <th class="py-3.5 px-4 font-bold text-center">B / S / K</th>
+                                <th class="py-3.5 px-4 font-bold text-center">Medsos / Konten</th>
+                                <th class="py-3.5 px-4 font-bold text-center">Skor Total</th>
+                                <th class="py-3.5 px-4 font-bold text-center">Pelanggaran</th>
+                                <th class="py-3.5 px-4 font-bold text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminResultsTbody" class="divide-y divide-slate-100">
+                            <!-- Diisi dinamis oleh JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 2: AUDIT BANK 60 SOAL -->
+            <div id="adminTabAudit" class="hidden bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-5">
+                <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <h3 class="font-bold text-indigo-950 text-sm">Audit Distribusi Kunci & Keseimbangan Panjang Karakter Opsi (60 Soal)</h3>
+                        <p class="text-xs text-indigo-800 mt-0.5">
+                            Setiap opsi jawaban (A–E) memiliki panjang teks yang seimbang (~75–92 karakter) agar siswa tidak dapat menandai opsi paling panjang sebagai kunci jawaban.
+                        </p>
+                    </div>
+                    <div id="auditKeySummary" class="flex flex-wrap gap-2 text-xs font-mono-code font-bold">
+                        <!-- Ringkasan distribusi kunci A-E -->
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <select id="auditThemeFilter" onchange="renderAuditQuestions()" class="px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white">
+                        <option value="ALL">Semua Tema (60 Soal)</option>
+                        <option value="Pengaruh Media Sosial">Tema 1: Pengaruh Media Sosial (30 Soal)</option>
+                        <option value="Konten Digital">Tema 2: Konten Digital (30 Soal)</option>
+                    </select>
+                    <select id="auditLevelFilter" onchange="renderAuditQuestions()" class="px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white">
+                        <option value="ALL">Semua Level (C3 & C4)</option>
+                        <option value="C3">Level C3 - Aplikasi (40 Soal)</option>
+                        <option value="C4">Level C4 - Analisis (20 Soal)</option>
+                    </select>
+                </div>
+
+                <div id="auditQuestionsList" class="space-y-4 max-h-[620px] overflow-y-auto pr-1">
+                    <!-- Diisi dinamis oleh JS -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ==================== MODAL LOGIN ADMIN ==================== -->
+    <div id="modalAdminLogin" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8 border border-slate-200">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                        <i class="fa-solid fa-lock"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-900">Login Administrator</h3>
+                        <p class="text-xs text-slate-500">Akses Rekap Nilai SQLite & Unduh Laporan</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeAdminModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form onsubmit="handleAdminLogin(event)" class="space-y-4 mt-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Password Admin</label>
+                    <div class="relative">
+                        <input type="password" id="adminPasswordInput" required placeholder="Masukkan password admin..."
+                            class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20 outline-none text-sm font-mono-code">
+                        <button type="button" onclick="toggleAdminPassVisibility()" class="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600">
+                            <i id="adminPassEye" class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                    <p id="adminLoginError" class="hidden text-xs text-rose-600 font-semibold mt-2">
+                        <i class="fa-solid fa-circle-exclamation mr-1"></i> Password salah! Akses ditolak.
+                    </p>
+                </div>
+
+                <div class="flex items-center justify-end gap-2.5 pt-2">
+                    <button type="button" onclick="closeAdminModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm">
+                        Batal
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md">
+                        Masuk Dashboard
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL PERINGATAN KELUAR FULL SCREEN ==================== -->
+    <div id="modalFullscreenGuard" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-7 border-2 border-amber-400 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl mx-auto mb-4">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-xl font-extrabold text-slate-900">Peringatan Mode Full Screen!</h3>
+            <p class="text-sm text-slate-600 mt-2 leading-relaxed">
+                Anda terdeteksi keluar dari mode layar penuh (Full Screen) saat ujian sedang berlangsung. Aktivitas ini telah dicatat ke sistem evaluasi.
+            </p>
+            <div class="mt-4 bg-amber-50 border border-amber-200 rounded-xl py-2 px-4 text-xs font-bold text-amber-900">
+                Total Catatan Keluar Layar / Tab: <span id="guardViolationCount">1</span> kali
+            </div>
+            <button type="button" onclick="resumeFullScreenFromGuard()" class="mt-6 w-full py-3.5 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-lg transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-expand"></i>
+                <span>Kembali ke Mode Full Screen</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL KONFIRMASI KUMPULKAN UJIAN ==================== -->
+    <div id="modalConfirmFinish" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-7 border border-slate-200">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl mb-4">
+                <i class="fa-solid fa-paper-plane"></i>
+            </div>
+            <h3 class="text-xl font-extrabold text-slate-900">Kumpulkan Jawaban Ujian?</h3>
+            <p class="text-sm text-slate-600 mt-1.5">Setelah dikumpulkan, jawaban tidak dapat diubah lagi dan skor akhir akan langsung ditampilkan.</p>
+
+            <div class="bg-slate-50 rounded-2xl p-4 my-5 border border-slate-200 space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-slate-600">Sudah Dijawab:</span>
+                    <span id="confirmAnsweredCount" class="font-bold text-emerald-600">0 Soal</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-600">Ditandai Ragu-ragu:</span>
+                    <span id="confirmDoubtCount" class="font-bold text-amber-600">0 Soal</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-600">Belum Dijawab:</span>
+                    <span id="confirmUnansweredCount" class="font-bold text-rose-600">0 Soal</span>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-2.5">
+                <button type="button" onclick="closeConfirmFinishModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm">
+                    Periksa Kembali
+                </button>
+                <button type="button" onclick="finishExam()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md">
+                    Ya, Selesai & Lihat Nilai
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL KONFIRMASI RESET DATABASE ==================== -->
+    <div id="modalResetDb" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+            <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl mb-4">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-lg font-extrabold text-slate-900">Hapus Semua Data Hasil Ujian?</h3>
+            <p class="text-sm text-slate-600 mt-1">Seluruh rekaman hasil ujian di database SQLite akan dihapus permanen. Pastikan Anda sudah mengunduh rekap Excel/CSV terlebih dahulu.</p>
+            <div class="flex justify-end gap-2.5 mt-6">
+                <button type="button" onclick="closeResetDbModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm">Batal</button>
+                <button type="button" onclick="resetAllDatabase()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm">Hapus Semua Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== SCRIPT UTAMA CBT, FULLSCREEN & SQLITE ==================== -->
+    <script>
+        /**
+         * =========================================================================
+         * 1. BANK SOAL INFORMATIKA LENGKAP 60 SOAL (C3 & C4)
+         * - Tema 1: Pengaruh Media Sosial (20 C3 + 10 C4 = 30 Soal)
+         * - Tema 2: Konten Digital (20 C3 + 10 C4 = 30 Soal)
+         * - Sebaran Kunci Asli: Tepat 12 soal di A(0), 12 di B(1), 12 di C(2),
+         *   12 di D(3), dan 12 di E(4).
+         * - Anti-Tebak Panjang Jawaban: Setiap opsi memiliki panjang teks seimbang
+         *   (~75 - 92 karakter) sehingga tidak ada opsi terpanjang yang mencolok.
+         * =========================================================================
+         */
+        const QUESTION_BANK = [
+            // ================= TEMA 1: PENGARUH MEDIA SOSIAL — C3 (20 SOAL) =================
+            {
+                id: 1,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Rani menerima pesan berantai di grup keluarga berisi tautan pembagian kuota internet gratis mengatasnamakan kementerian. Tindakan literasi digital paling tepat yang harus dilakukan Rani agar terhindar dari jebakan phishing adalah...",
+                options: [
+                    "Memeriksa kebenaran informasi melalui situs web resmi milik instansi pemerintah terkait",
+                    "Membagikan tautan tersebut ke grup kelas agar teman lain ikut mencoba mendaftar cepat",
+                    "Mengisi formulir pendaftaran dengan alamat email cadangan beserta nomor ponsel utama",
+                    "Menghubungi nomor pengirim pesan berantai untuk menanyakan sisa kuota yang tersedia",
+                    "Menyimpan tautan tersebut pada catatan ponsel untuk dibuka saat jaringan lebih stabil"
+                ],
+                answer: 0
+            },
+            {
+                id: 2,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Seorang pelajar sering mengalami gangguan tidur dan penurunan fokus belajar karena kebiasaan menggulir lini masa media sosial hingga larut malam. Penerapan kesejahteraan digital (digital wellbeing) yang tepat untuk mengatasi hal tersebut adalah...",
+                options: [
+                    "Mengganti tema tampilan aplikasi media sosial menjadi mode gelap sepanjang hari penuh",
+                    "Mengaktifkan fitur pembatas waktu harian aplikasi serta menjadwalkan mode tidur malam",
+                    "Menghapus seluruh foto profil akun agar tidak ada teman yang mengirim pesan saat malam",
+                    "Memindahkan ikon aplikasi media sosial ke halaman terakhir pada layar utama ponsel",
+                    "Mengurangi tingkat kecerahan layar ponsel hingga batas minimum saat menjelang tidur"
+                ],
+                answer: 1
+            },
+            {
+                id: 3,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Saat hendak mengunggah foto kegiatan karya wisata sekolah ke akun Instagram publik, Dimas menyadari terlihat kartu pelajar temannya dengan nomor induk dan alamat rumah jelas. Langkah perlindungan privasi yang tepat dilakukan Dimas adalah...",
+                options: [
+                    "Menambahkan keterangan lokasi sekolah secara lengkap pada kolom deskripsi unggahan",
+                    "Menandai akun seluruh peserta karya wisata agar foto cepat menyebar luas di beranda",
+                    "Menyamarkan bagian informasi pribadi pada kartu pelajar sebelum foto dipublikasikan",
+                    "Mengubah filter warna foto menjadi hitam putih agar tulisan terlihat lebih artistik",
+                    "Mengunggah foto tersebut melalui fitur cerita singkat tanpa menyimpannya pada profil"
+                ],
+                answer: 2
+            },
+            {
+                id: 4,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Dalam sebuah forum diskusi daring, dua anggota saling melontarkan ejekan kasar akibat perbedaan pendapat mengenai topik proyek. Jika kamu berperan sebagai moderator komunitas tersebut, tindakan moderasi konstruktif yang perlu diterapkan adalah...",
+                options: [
+                    "Membiarkan perdebatan berlangsung terus agar jumlah interaksi unggahan makin meningkat",
+                    "Ikut membalas komentar dengan argumen keras untuk membela salah satu pihak bertikai",
+                    "Membagikan tangkapan layar pertengkaran mereka ke akun media sosial pribadi secara luas",
+                    "Menghapus komentar bernada kebencian dan mengingatkan aturan etika berkomunikasi sehat",
+                    "Menutup seluruh akses pendaftaran anggota baru pada grup diskusi selama satu bulan"
+                ],
+                answer: 3
+            },
+            {
+                id: 5,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Sinta ingin memanfaatkan media sosial untuk membangun citra diri positif (personal branding) menjelang seleksi beasiswa pendidikan. Strategi pemanfaatan media sosial yang paling relevan diterapkan Sinta adalah...",
+                options: [
+                    "Mengunggah keluh kesah mengenai tugas sekolah setiap hari agar mendapat banyak simpati",
+                    "Menggunakan nama samaran unik supaya tim penyeleksi tidak menemukan akun pribadinya",
+                    "Mengunci seluruh akun media sosial dan menghapus riwayat prestasi yang pernah diraih",
+                    "Membagikan ulang meme hiburan populer setiap jam agar jumlah pengikut terus bertambah",
+                    "Mendokumentasikan karya proyek, kegiatan relawan, serta ulasan buku secara konsisten"
+                ],
+                answer: 4
+            },
+            {
+                id: 6,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Pelaku usaha mikro kecil menengah (UMKM) keripik singkong ingin memperluas jangkauan pembeli remaja melalui platform video pendek. Cara penerapan strategi pemasaran media sosial yang paling efektif adalah...",
+                options: [
+                    "Membuat video proses produksi yang higienis dipadukan tren audio yang sedang relevan",
+                    "Mengirimkan pesan promosi panjang secara acak ke ratusan kolom komentar selebritas",
+                    "Mengunggah foto katalog daftar harga dengan tulisan sangat kecil tanpa keterangan jelas",
+                    "Membeli ribuan pengikut otomatis luar negeri agar tampilan profil terlihat meyakinkan",
+                    "Mengganti nama merek dagang setiap minggu menyesuaikan tren kata kunci pencarian"
+                ],
+                answer: 0
+            },
+            {
+                id: 7,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Akun media sosial milik ketua OSIS tiba-tiba mengirimkan pesan permintaan pinjaman dana kepada beberapa pengurus lainnya. Langkah pengamanan akun pertama yang harus segera diterapkan ketua OSIS tersebut adalah...",
+                options: [
+                    "Membuat akun baru dengan nama sama dan meminta teman melaporkan akun lamanya segera",
+                    "Mengganti kata sandi dengan kombinasi kuat dan mengaktifkan autentikasi dua faktor",
+                    "Menghapus daftar kontak teman dekat yang sudah menerima pesan permintaan dana tersebut",
+                    "Menonaktifkan koneksi internet ponsel selama beberapa hari hingga peretas berhenti",
+                    "Mengunggah permintaan maaf di status pesan tanpa mengubah pengaturan keamanan akun"
+                ],
+                answer: 1
+            },
+            {
+                id: 8,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Ketika melihat unggahan foto liburan teman-teman di media sosial, Bima merasa cemas dan tertinggal (Fear of Missing Out / FOMO) sehingga mendorongnya berbelanja barang secara impulsif. Tindakan pengendalian diri yang tepat bagi Bima adalah...",
+                options: [
+                    "Menambah jumlah akun belanja daring agar mendapat banyak kupon potongan harga harian",
+                    "Mengunggah foto barang mewah milik orang lain supaya terlihat setara di lini masa",
+                    "Membatasi paparan akun pemicu konsumtif serta menyusun prioritas anggaran pribadi",
+                    "Mematikan kolom komentar pada setiap unggahan pribadi agar tidak dikritik teman",
+                    "Membuat jadwal khusus untuk memantau aktivitas seluruh teman setiap akhir pekan"
+                ],
+                answer: 2
+            },
+            {
+                id: 9,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Sebuah unggahan foto bencana banjir di media sosial memicu kepanikan warga karena mencantumkan tanggal kejadian yang sebenarnya sudah berlalu tiga tahun lalu. Cara memverifikasi keaslian foto tersebut sebelum dibagikan adalah...",
+                options: [
+                    "Menghitung jumlah tanda suka dan komentar dukungan yang muncul di bawah unggahan",
+                    "Membaca ulang judul berita dengan teliti untuk mencari kesalahan ejaan bahasa baku",
+                    "Menanyakan kebenaran foto tersebut kepada teman sebangku yang aktif bermedia sosial",
+                    "Menggunakan fitur pencarian gambar terbalik untuk melacak sumber waktu terbit asli",
+                    "Memeriksa resolusi ketajaman gambar menggunakan aplikasi penyunting foto di ponsel"
+                ],
+                answer: 3
+            },
+            {
+                id: 10,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Dalam proyek kolaborasi lintas sekolah, tim siswa membutuhkan ruang komunikasi daring untuk berbagi dokumen progres, jadwal rapat, dan diskusi terstruktur. Pemanfaatan fitur media sosial dan kolaborasi yang tepat adalah...",
+                options: [
+                    "Menyampaikan seluruh revisi laporan melalui siaran langsung video publik berdurasi singkat",
+                    "Menuliskan semua catatan rapat di kolom komentar foto profil ketua kelompok proyek",
+                    "Mengirimkan berkas tugas secara terpisah melalui pesan pribadi kepada tiap anggota",
+                    "Menggunakan fitur cerita berbatas waktu dua puluh empat jam untuk menyimpan arsip",
+                    "Membuat grup diskusi khusus dengan kanal topik terpisah serta tautan penyimpanan awan"
+                ],
+                answer: 4
+            },
+            {
+                id: 11,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Nadia mendapati seseorang membuat akun palsu yang memakai foto profil dan nama lengkapnya untuk mengirim komentar merugikan orang lain. Langkah penanganan hukum dan teknis yang tepat dilakukan Nadia adalah...",
+                options: [
+                    "Mengumpulkan bukti tangkapan layar dan melaporkan akun melalui fitur pelaporan platform",
+                    "Membuat unggahan balasan berisi ancaman terbuka kepada pemilik akun palsu tersebut",
+                    "Menghapus seluruh foto dari galeri ponsel agar tidak dapat diakses oleh pihak lain",
+                    "Mengubah nama akun asli menjadi inisial singkat tanpa memberitahu rekan terdekat",
+                    "Membayar jasa peretas anonim untuk mengambil alih kendali akun tiruan tersebut"
+                ],
+                answer: 0
+            },
+            {
+                id: 12,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Organisasi pecinta lingkungan sekolah ingin menggalang partisipasi masyarakat dalam aksi bersih sungai akhir pekan melalui media sosial. Penerapan kampanye digital yang efektif untuk menggerakkan aksi nyata adalah...",
+                options: [
+                    "Mengunggah kutipan motivasi bahasa asing tanpa mencantumkan lokasi kegiatan jelas",
+                    "Menyertakan infografis jadwal, titik kumpul, perlengkapan, dan tautan pendaftaran",
+                    "Menampilkan foto tumpukan sampah lama tanpa memberikan solusi tindak lanjutnya",
+                    "Mengirimkan undangan siaran massal tengah malam kepada seluruh pengguna acak",
+                    "Membatasi informasi kegiatan hanya untuk anggota inti melalui pesan terenkripsi"
+                ],
+                answer: 1
+            },
+            {
+                id: 13,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Sebelum melamar program magang industri, Andi melakukan audit jejak digital pada seluruh akun media sosial miliknya. Aktivitas yang mencerminkan penerapan audit jejak digital yang tepat adalah...",
+                options: [
+                    "Menghapus seluruh riwayat penelusuran peramban pada komputer laboratorium sekolah",
+                    "Mengganti seluruh foto sampul akun dengan gambar pemandangan alam beresolusi tinggi",
+                    "Meninjau ulang unggahan lama serta mengarsipkan komentar yang kurang profesional",
+                    "Menonaktifkan pemberitahuan suara aplikasi pesan instan selama proses wawancara",
+                    "Menambahkan puluhan tagar populer pada setiap unggahan lama di lini masa pribadi"
+                ],
+                answer: 2
+            },
+            {
+                id: 14,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Seorang siswa melihat teman sekelasnya menjadi sasaran perundungan siber (cyberbullying) di kolom komentar unggahan pentas seni. Bentuk dukungan empatik dan aman yang dapat diberikan siswa tersebut adalah...",
+                options: [
+                    "Ikut menertawakan komentar negatif agar dianggap kompak oleh kelompok perundung",
+                    "Membagikan ulang unggahan bermasalah tersebut supaya lebih banyak orang melihatnya",
+                    "Membalas setiap komentar perundung dengan kata kasar menggunakan akun kedua",
+                    "Memberi dukungan positif kepada korban serta melaporkan komentar perundungan ke sistem",
+                    "Menyarankan korban untuk menutup diri dan berhenti mengikuti kegiatan seni sekolah"
+                ],
+                answer: 3
+            },
+            {
+                id: 15,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Untuk menghindari terjebak dalam ruang gema (echo chamber) akibat algoritma media sosial yang hanya menampilkan topik sepaham, kebiasaan literasi digital yang perlu diterapkan pengguna adalah...",
+                options: [
+                    "Menekan tombol tidak suka pada setiap berita yang memiliki sudut pandang berbeda",
+                    "Hanya mengikuti akun komunitas yang memiliki kesamaan hobi dan latar belakang",
+                    "Membatasi waktu membaca berita maksimal lima menit dalam satu minggu penuh",
+                    "Menghapus riwayat pencarian setiap selesai membaca satu artikel opini daring",
+                    "Mengikuti beragam sumber informasi kredibel dengan perspektif yang berimbang"
+                ],
+                answer: 4
+            },
+            {
+                id: 16,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Saat menggunakan komputer umum di perpustakaan sekolah untuk mengakses akun media sosial, langkah keamanan wajib sebelum meninggalkan komputer adalah...",
+                options: [
+                    "Melakukan keluar akun (logout) secara penuh dan menghapus data sesi peramban",
+                    "Menutup jendela peramban secara langsung dengan menekan tombol silang di pojok",
+                    "Menyimpan kata sandi pada pengelola sandi peramban agar mudah masuk kembali",
+                    "Mematikan layar monitor komputer tanpa menutup aplikasi yang sedang berjalan",
+                    "Mengubah bahasa tampilan akun menjadi bahasa asing agar tidak dipahami orang"
+                ],
+                answer: 0
+            },
+            {
+                id: 17,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Guru Informatika menugaskan siswa mencari narasumber praktisi keamanan siber untuk wawancara tugas proyek. Pemanfaatan jejaring profesional seperti LinkedIn yang tepat untuk tujuan tersebut adalah...",
+                options: [
+                    "Mengirimkan pesan singkat berisi huruf kapital semua agar segera dibaca narasumber",
+                    "Menyapa dengan bahasa sopan, memperkenalkan identitas sekolah, dan tujuan wawancara",
+                    "Menuliskan permintaan wawancara di kolom komentar unggahan keluarga narasumber",
+                    "Menghubungi nomor telepon pribadi narasumber berkali-kali di luar jam kerja",
+                    "Meminta teman sekelas mengirim pesan serupa secara serentak ke akun narasumber"
+                ],
+                answer: 1
+            },
+            {
+                id: 18,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Sebuah unggahan promosi produk suplemen kesehatan di media sosial mengklaim hasil instan dalam dua hari tanpa izin edar resmi. Sikap konsumen cerdas saat menemukan iklan tersebut adalah...",
+                options: [
+                    "Segera memesan produk karena tergiur testimoni tangkapan layar yang ditampilkan",
+                    "Membagikan iklan tersebut ke grup teman agar mendapat komisi afiliasi penjualan",
+                    "Memeriksa nomor registrasi produk pada basis data resmi badan pengawas obat",
+                    "Menanyakan cara pemakaian produk secara rinci melalui kolom komentar iklan",
+                    "Menyimpan nomor kontak penjual untuk membandingkan harga dengan toko sebelah"
+                ],
+                answer: 2
+            },
+            {
+                id: 19,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Untuk menjaga kesehatan mata dan postur tubuh akibat duduk lama saat mengikuti komunitas belajar daring dan bermedia sosial di akhir pekan, penerapan ergonomi digital yang sesuai adalah...",
+                options: [
+                    "Meletakkan laptop di atas bantal empuk sambil berbaring miring selama berjam-jam",
+                    "Menggunakan earphone dengan volume maksimal agar fokus mendengarkan diskusi",
+                    "Menatap layar monitor tanpa berkedip selama satu jam sebelum beristirahat singkat",
+                    "Menerapkan aturan jeda pandangan tiap dua puluh menit serta peregangan tubuh",
+                    "Mematikan seluruh lampu ruangan kerja agar kontras layar terlihat lebih tajam"
+                ],
+                answer: 3
+            },
+            {
+                id: 20,
+                theme: "Pengaruh Media Sosial",
+                level: "C3",
+                question: "Ketika mengutip pendapat atau utas edukatif milik kreator lain di media sosial untuk bahan presentasi kelompok, penerapan etika sitasi digital yang benar adalah...",
+                options: [
+                    "Menyalin seluruh isi tulisan tanpa tanda kutip agar tampilan salindia terlihat rapi",
+                    "Mengubah beberapa kata sambung lalu mengklaim gagasan tersebut sebagai hasil riset",
+                    "Menghapus nama akun pembuat asli supaya audiens fokus pada isi materi saja",
+                    "Menambahkan hiasan bingkai warna-warni di sekeliling tangkapan layar tulisan",
+                    "Mencantumkan nama kreator, platform sumber, serta tautan rujukan pada salindia"
+                ],
+                answer: 4
+            },
+
+            // ================= TEMA 1: PENGARUH MEDIA SOSIAL — C4 (10 SOAL) =================
+            {
+                id: 21,
+                theme: "Pengaruh Media Sosial",
+                level: "C4",
+                question: "Analisis kasus: Sebuah platform media sosial mengalami penurunan kualitas diskusi publik karena sistem rekomendasinya memprioritaskan unggahan yang memicu kemarahan (outrage) demi meningkatkan durasi tayang iklan. Dampak sistemik paling mendasar dari desain algoritma tersebut terhadap masyarakat adalah...",
+                options: [
+                    "Terjadinya polarisasi opini sosial akibat penguatan bias konfirmasi pengguna",
+                    "Menurunnya kapasitas penyimpanan server pusat karena terlalu banyak komentar",
+                    "Berkurangnya minat perusahaan teknologi untuk mengembangkan fitur video pendek",
+                    "Meningkatnya kecepatan koneksi internet seluler pada jam sibuk malam hari",
+                    "Hilangnya seluruh akun kreator edukasi dari daftar pencarian utama platform"
+                ],
+                answer: 0
+            },
+            {
+                id: 22,
+                theme: "Pengaruh Media Sosial",
+                level: "C4",
+                question: "Perhatikan fenomena berikut: Siswa A memiliki ratusan teman akrab di media sosial tetapi merasa kesepian dan sulit berkomunikasi tatap muka di kelas. Berdasarkan analisis psikososial penggunaan media sosial, faktor penyebab utama kesenjangan tersebut adalah...",
+                options: [
+                    "Keterbatasan kuota internet seluler yang menghambat panggilan video setiap hari",
+                    "Interaksi daring yang dangkal menggantikan komunikasi empatik tatap muka nyata",
+                    "Perbedaan merek perangkat ponsel pintar yang digunakan oleh teman sekelasnya",
+                    "Kurangnya fitur penerjemah otomatis pada aplikasi pesan instan yang dipakai",
+                    "Tingginya biaya langganan aplikasi hiburan berbayar di kalangan pelajar remaja"
+                ],
+                answer: 1
+            },
+            {
+                id: 23,
+                theme: "Pengaruh Media Sosial",
+                level: "C4",
+                question: "Sebuah studi menunjukkan remaja yang sering membandingkan pencapaian akademiknya dengan sorotan keberhasilan orang lain di media sosial mengalami penurunan motivasi intrinsik. Mengapa perbandingan sosial di media sosial sering kali menghasilkan penilaian diri yang bias?",
+                options: [
+                    "Karena pengguna media sosial dilarang mengunggah kegagalan oleh aturan hukum",
+                    "Karena algoritma platform secara otomatis menghapus unggahan bernuansa sedih",
+                    "Karena lini masa menampilkan kurasi momen terbaik yang tidak utuh dari realitas",
+                    "Karena mayoritas pengguna media sosial berasal dari kalangan profesional mapan",
+                    "Karena fitur penyuntingan teks hanya tersedia bagi akun terverifikasi resmi"
+                ],
+                answer: 2
+            },
+            {
+                id: 24,
+                theme: "Pengaruh Media Sosial",
+                level: "C4",
+                question: "Dalam sebuah kampanye pemilihan ketua organisasi, tim sukses menggunakan puluhan akun otomatis (bot) untuk menyebarkan tagar dukungan secara serentak dalam hitungan menit. Analisis dampak manipulasi tren (astroturfing) tersebut terhadap proses demokrasi adalah...",
+                options: [
+                    "Mempercepat proses penghitungan suara elektronik pada hari pemungutan suara",
+                    "Menghemat biaya cetak poster kampanye di lingkungan sekitar area pemilihan",
+                    "Meningkatkan partisipasi pemilih pemula yang belum memahami visi kandidat",
+                    "Menciptakan ilusi dukungan mayoritas palsu yang mendistorsi pertimbangan pemilih",
+                    "Mempermudah panitia pengawas dalam melacak rekam jejak setiap calon ketua"
+                ],
+                answer: 3
+            },
+            {
+                id: 25,
+                theme: "Pengaruh Media Sosial",
+                level: "C4",
+                question: "Banyak aplikasi media sosial gratis menawarkan fitur kuis kepribadian yang meminta izin akses daftar teman, alamat email, dan riwayat aktivitas. Jika dianalisis dari perspektif ekonomi data, risiko strategis dari pemberian izin berlebihan tersebut adalah...",
+                options: [
+                    "Baterai perangkat ponsel menjadi cepat penuh saat diisi daya menggunakan kabel",
+                    "Tampilan antarmuka aplikasi berubah menjadi mode klasik tanpa pemberitahuan",
+                    "Kapasitas memori internal ponsel bertambah secara otomatis setelah mengisi kuis",
+                    "Kecepatan unduh berkas dokumen di peramban meningkat dua kali lipat dari biasa",
+                    "Profil perilaku pengguna dipetakan untuk penargetan iklan mikro maupun penipuan"
+                ],
+                answer: 4
+            },
+            {
+                id: 26,
+                theme: "Pengaruh Media Sosial",
+                level: "C4",
+                question: "Ketika terjadi krisis kesehatan masyarakat, informasi keliru (misinformasi) sering menyebar lebih cepat dibandingkan klarifikasi resmi lembaga kesehatan. Faktor psikologis dan struktural media sosial yang menjelaskan fenomena ini adalah...",
+                options: [
+                    "Konten sensasional memicu emosi kuat sehingga mendorong berbagi tanpa verifikasi",
+                    "Lembaga kesehatan tidak memiliki akses internet untuk mengunggah data harian",
+                    "Klarifikasi resmi selalu ditulis menggunakan bahasa pemrograman tingkat tinggi",
+                    "Pengguna media sosial lebih menyukai artikel ilmiah panjang berhalaman-halaman",
+                    "Platform digital membatasi jumlah karakter khusus untuk akun instansi negara"
+                ],
+                answer: 0
+            },
+            {
+                id: 27,
+                theme: "Pengaruh Media Sosial",
+                level: "C4",
+                question: "Perusahaan ritel mengalami lonjakan penjualan tajam setelah produknya diulas secara organik oleh kreator mikro (micro-influencer), jauh melampaui hasil iklan baliho konvensional. Analisis penyebab efektivitas pemasaran berbasis kreator mikro tersebut adalah...",
+                options: [
+                    "Kreator mikro memiliki anggaran produksi video setara studio film internasional",
+                    "Tingkat kepercayaan dan kedekatan emosional audiens terhadap kreator lebih tinggi",
+                    "Iklan baliho konvensional sudah dilarang pemasangannya di seluruh jalan protokol",
+                    "Setiap pengikut kreator mikro diwajibkan membeli produk oleh sistem aplikasi",
+                    "Harga produk otomatis turun drastis ketika diulas melalui siaran langsung daring"
+                ],
+                answer: 1
+            },
+            {
+                id: 28,
+                theme: "Pengaruh Media Sosial",
+                level: "C4",
+                question: "Fenomena 'sharenting'—ketika orang tua terlalu sering mengunggah foto, lokasi sekolah, dan kebiasaan anak ke media sosial publik—menimbulkan perdebatan etika. Analisis ancaman jangka panjang bagi anak dari praktik tersebut adalah...",
+                options: [
+                    "Anak akan kesulitan mendaftar akun email pribadi ketika memasuki usia dewasa",
+                    "Kapasitas penyimpanan awan milik orang tua cepat habis sebelum anak lulus sekolah",
+                    "Terbentuknya jejak digital permanen tanpa persetujuan anak yang rentan disalahgunakan",
+                    "Anak menjadi tidak tertarik mempelajari mata pelajaran seni rupa dan fotografi",
+                    "Perangkat kamera ponsel orang tua mengalami penurunan kualitas sensor warna"
+                ],
+                answer: 2
+            },
+            {
+                id: 29,
+                theme: "Pengaruh Media Sosial",
+                level: "C4",
+                question: "Seorang jurnalis warga merekam peristiwa kemacetan parah akibat kecelakaan lalu lintas dan langsung menyiarkannya tanpa menyamarkan pelat nomor maupun wajah korban. Evaluasi kritis terhadap tindakan tersebut menunjukkan adanya benturan antara...",
+                options: [
+                    "Kecepatan unggah video beresolusi tinggi dengan kapasitas jaringan seluler lokal",
+                    "Penggunaan fitur siaran langsung dengan aturan durasi maksimal unggahan video",
+                    "Minat penonton terhadap berita lalu lintas dengan jadwal siaran televisi nasional",
+                    "Hak publik memperoleh informasi cepat dengan perlindungan martabat serta privasi korban",
+                    "Kualitas mikrofon perangkat ponsel dengan tingkat kebisingan kendaraan di jalan"
+                ],
+                answer: 3
+            },
+            {
+                id: 30,
+                theme: "Pengaruh Media Sosial",
+                level: "C4",
+                question: "Dalam ekosistem kerja jarak jauh (remote working), penggunaan grup pesan instan kantor sering mengaburkan batas antara jam kerja dan waktu istirahat pribadi. Dampak organisasi jangka panjang jika kondisi ini dibiarkan tanpa kebijakan komunikasi adalah...",
+                options: [
+                    "Meningkatnya efisiensi penggunaan listrik di gedung perkantoran pusat perusahaan",
+                    "Berkurangnya kebutuhan perusahaan terhadap tenaga ahli teknologi informasi",
+                    "Membaiknya kualitas dokumentasi arsip fisik pada setiap divisi operasional",
+                    "Menurunnya biaya langganan perangkat lunak perkantoran berbasis komputasi awan",
+                    "Terjadinya kelelahan mental (burnout) karyawan yang menurunkan produktivitas tim"
+                ],
+                answer: 4
+            },
+
+            // ================= TEMA 2: KONTEN DIGITAL — C3 (20 SOAL) =================
+            {
+                id: 31,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Dina membuat infografis edukasi mengenai pencegahan demam berdarah yang akan dicetak dalam ukuran poster besar sekaligus dibagikan di media sosial. Format berkas grafis yang paling tepat dipilih untuk menjaga ketajaman garis dan teks saat diperbesar adalah...",
+                options: [
+                    "Format grafis vektor seperti SVG atau PDF berbasis vektor agar tidak pecah",
+                    "Format gambar bitmap terkompresi tinggi seperti JPEG beresolusi rendah",
+                    "Format animasi bergerak sederhana seperti GIF dengan palet warna terbatas",
+                    "Format tangkapan layar standar berformat BMP tanpa kompresi ukuran berkas",
+                    "Format ikon sistem operasi berformat ICO dengan dimensi piksel sangat kecil"
+                ],
+                answer: 0
+            },
+            {
+                id: 32,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Saat menyunting video dokumenter sekolah menggunakan musik latar dari internet, Raka memilih lagu berlisensi Creative Commons Attribution (CC BY). Kewajiban yang harus dipenuhi Raka saat mempublikasikan video tersebut adalah...",
+                options: [
+                    "Membayar royalti tahunan sebesar setengah dari pendapatan iklan saluran video",
+                    "Mencantumkan nama pencipta asli musik beserta jenis lisensinya pada deskripsi",
+                    "Mengubah tempo dan nada dasar musik agar tidak terdeteksi sistem hak cipta",
+                    "Membatasi penayangan video hanya untuk penonton yang memiliki tautan pribadi",
+                    "Menghapus bagian kredit akhir video supaya durasi tayangan menjadi lebih singkat"
+                ],
+                answer: 1
+            },
+            {
+                id: 33,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Tim redaksi majalah dinding digital sekolah ingin menyajikan data survei minat baca 500 siswa dalam bentuk konten visual yang mudah dipahami dalam sekali lihat. Jenis visualisasi konten digital yang paling tepat diterapkan adalah...",
+                options: [
+                    "Menyalin seluruh tabel mentah spreadsheet berisi lima ratus baris nama siswa",
+                    "Menuliskan seluruh angka persentase dalam bentuk paragraf narasi panjang",
+                    "Menyajikan grafik batang dan diagram lingkaran dengan label angka yang jelas",
+                    "Mengunggah rekaman suara pembacaan hasil survei selama dua puluh menit penuh",
+                    "Menampilkan daftar tautan berkas mentah tanpa ringkasan kesimpulan data"
+                ],
+                answer: 2
+            },
+            {
+                id: 34,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Agar konten artikel blog edukasi mudah ditemukan pengguna melalui mesin pencari (Search Engine Optimization / SEO), langkah optimasi struktur konten yang tepat dilakukan penulis adalah...",
+                options: [
+                    "Mengulang kata kunci utama puluhan kali secara acak di bagian bawah halaman",
+                    "Menyembunyikan teks putih di atas latar belakang putih agar terbaca robot",
+                    "Menggunakan judul artikel yang sangat panjang hingga melebihi seratus lima puluh kata",
+                    "Menyusun judul relevan, subjudul terstruktur, serta deskripsi meta yang ringkas",
+                    "Mengunggah seluruh isi artikel dalam bentuk satu gambar besar tanpa teks HTML"
+                ],
+                answer: 3
+            },
+            {
+                id: 35,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Dalam produksi siniar (podcast) pendidikan di ruang kelas yang memiliki sedikit gema, pengaturan teknis perekaman yang paling tepat diterapkan untuk menghasilkan audio jernih adalah...",
+                options: [
+                    "Meletakkan mikrofon di sudut ruangan terjauh agar menangkap suasana kelas",
+                    "Menaikkan penguatan suara (gain) hingga batas maksimal agar suara terdengar keras",
+                    "Merekam audio di dekat kipas angin menyala untuk menyamarkan suara gema ruang",
+                    "Menyimpan berkas akhir dalam format audio mentah WAV berkapasitas sangat besar",
+                    "Menggunakan mikrofon arah dekat mulut pembicara serta memasang peredam suara"
+                ],
+                answer: 4
+            },
+            {
+                id: 36,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Sari merancang materi presentasi digital untuk audiens di aula besar dengan pencahayaan terang. Penerapan prinsip desain tipografi dan kontras warna yang tepat pada salindia adalah...",
+                options: [
+                    "Memakai jenis huruf sans-serif berukuran besar dengan kontras latar yang tinggi",
+                    "Menggunakan huruf sambung dekoratif kecil dengan warna pastel di latar putih",
+                    "Menempatkan seluruh paragraf naskah pidato ke dalam satu halaman salindia penuh",
+                    "Memadukan lima jenis warna latar cerah berbeda pada setiap baris kalimat judul",
+                    "Menambahkan animasi teks berputar terus-menerus di sepanjang penjelasan materi"
+                ],
+                answer: 0
+            },
+            {
+                id: 37,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Untuk memastikan konten gambar pada situs web informasi sekolah dapat diakses oleh penyandang tunanetra yang menggunakan pembaca layar (screen reader), praktik aksesibilitas digital yang wajib diterapkan adalah...",
+                options: [
+                    "Mengubah ukuran seluruh gambar menjadi sangat kecil di pojok bawah halaman",
+                    "Menambahkan teks alternatif (alt text) yang mendeskripsikan isi gambar secara jelas",
+                    "Menghapus seluruh elemen gambar ilustrasi dari artikel berita kegiatan sekolah",
+                    "Menambahkan musik latar otomatis ketika halaman berita dibuka oleh pengunjung",
+                    "Menggunakan warna latar belakang hitam pekat pada seluruh bagian situs web"
+                ],
+                answer: 1
+            },
+            {
+                id: 38,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Budi ingin mengunggah video tutorial pemrograman berdurasi 10 menit ke platform pembelajaran daring dengan ukuran berkas efisien namun kualitas gambar tetap tajam (1080p). Konfigurasi ekspor video yang paling sesuai adalah...",
+                options: [
+                    "Format AVI tanpa kompresi dengan laju bit (bitrate) seratus megabit per detik",
+                    "Format GIF animasi berulang dengan resolusi rendah dua ratus empat puluh piksel",
+                    "Format MP4 menggunakan codec H.264 dengan laju bit standar delapan megabit",
+                    "Format MOV mentah beresolusi 4K dengan kecepatan enam puluh bingkai per detik",
+                    "Format WMV lama dengan rasio aspek layar kotak empat banding tiga standar"
+                ],
+                answer: 2
+            },
+            {
+                id: 39,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Ketika membuat konten video pendek edukasi (Reels/Shorts) untuk perangkat ponsel pintar, pengaturan orientasi dan komposisi area aman (safe zone) yang tepat adalah...",
+                options: [
+                    "Rasio mendatar 16:9 dengan teks penjelasan diletakkan tepat di tepi paling bawah",
+                    "Rasio persegi 1:1 dengan menempatkan judul utama tertutup tombol suka aplikasi",
+                    "Rasio sinematik 21:9 dengan ukuran huruf takarir (subtitle) sangat kecil di sudut",
+                    "Rasio vertikal 9:16 dengan menempatkan teks utama di area tengah bebas ikon",
+                    "Rasio bebas tanpa bingkai dengan memutar orientasi video sembilan puluh derajat"
+                ],
+                answer: 3
+            },
+            {
+                id: 40,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Seorang kreator konten menggunakan perangkat lunak kecerdasan buatan generatif untuk membuat ilustrasi sampul buku cerita anak. Langkah etis dan profesional yang harus dilakukan kreator sebelum menerbitkan karya tersebut adalah...",
+                options: [
+                    "Mengklaim bahwa seluruh ilustrasi dilukis manual dengan cat air di atas kanvas",
+                    "Menghapus seluruh keterangan proses pembuatan agar pembaca tidak curiga",
+                    "Menggunakan wajah tokoh publik terkenal tanpa izin untuk sampul komersial",
+                    "Mengunggah hasil mentah tanpa memeriksa keanehan detail anatomi gambar",
+                    "Memeriksa ketentuan lisensi platform AI dan menyertakan keterangan penggunaan AI"
+                ],
+                answer: 4
+            },
+            {
+                id: 41,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Dalam merancang aset logo organisasi sekolah yang membutuhkan latar belakang transparan agar dapat ditempel pada berbagai warna poster, format berkas gambar raster yang paling tepat disimpan adalah...",
+                options: [
+                    "Format PNG karena mendukung saluran alfa untuk transparansi latar belakang",
+                    "Format JPG karena secara otomatis menghilangkan latar belakang warna putih",
+                    "Format PDF cetak lama yang mengunci warna latar menjadi abu-abu standar",
+                    "Format BMP standar yang memiliki ukuran berkas paling ringan di peramban",
+                    "Format TIFF berlapis yang tidak dapat dibuka langsung oleh aplikasi ponsel"
+                ],
+                answer: 0
+            },
+            {
+                id: 42,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Tim humas sekolah menyusun kalender editorial konten digital untuk satu bulan ke depan. Tujuan utama penerapan kalender editorial dalam pengelolaan konten adalah...",
+                options: [
+                    "Membatasi jumlah siswa yang boleh memberikan komentar pada unggahan sekolah",
+                    "Menjaga konsistensi jadwal publikasi, variasi topik, serta kesiapan produksi",
+                    "Menggantikan seluruh kegiatan rapat koordinasi pengurus majalah dinding fisik",
+                    "Menghapus secara otomatis unggahan yang berusia lebih dari tiga puluh hari",
+                    "Menyamakan seluruh desain poster kegiatan menjadi satu templat warna tunggal"
+                ],
+                answer: 1
+            },
+            {
+                id: 43,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Saat mengedit foto kegiatan upacara bendera yang tampak terlalu gelap akibat cahaya latar (backlight), penyesuaian parameter penyuntingan gambar yang tepat dilakukan adalah...",
+                options: [
+                    "Menaikkan saturasi warna merah hingga maksimal agar bendera terlihat mencolok",
+                    "Memotong seluruh bagian langit pada foto sehingga objek utama terpotong",
+                    "Meningkatkan nilai pencahayaan (exposure) dan bayangan (shadows) secara seimbang",
+                    "Menambahkan efek blur menyeluruh pada bagian tengah subjek foto kegiatan",
+                    "Mengubah rasio aspek foto menjadi panorama memanjang tanpa mengatur cahaya"
+                ],
+                answer: 2
+            },
+            {
+                id: 44,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Untuk mencegah pencurian aset fotografi karya asli siswa yang dipajang di galeri daring publik, langkah perlindungan hak cipta praktis yang dapat diterapkan pada berkas gambar adalah...",
+                options: [
+                    "Mengunggah foto dengan orientasi terbalik agar tidak disimpan pengunjung",
+                    "Menghapus seluruh metadata kamera sebelum mengirim foto ke panitia lomba",
+                    "Membagikan berkas mentah beresolusi penuh di kolom komentar media sosial",
+                    "Menyematkan tanda air (watermark) halus serta mencatat metadata hak cipta",
+                    "Mengubah ekstensi nama berkas foto menjadi dokumen teks sebelum diunggah"
+                ],
+                answer: 3
+            },
+            {
+                id: 45,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Dalam penulisan naskah konten video edukasi berdurasi 3 menit, bagian pembuka (hook) pada 5 detik pertama sangat menentukan retensi penonton. Teknik penyusunan pembuka konten yang efektif adalah...",
+                options: [
+                    "Menampilkan animasi logo sponsor selama dua puluh detik diiringi musik keras",
+                    "Membacakan daftar pustaka dan profil lengkap seluruh anggota tim produksi",
+                    "Meminta penonton menekan tombol berlangganan sebelum menjelaskan topik utama",
+                    "Menampilkan layar hitam kosong dengan teks ucapan selamat datang standar",
+                    "Mengajukan pertanyaan pemantik relevan atau fakta mengejutkan terkait masalah"
+                ],
+                answer: 4
+            },
+            {
+                id: 46,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Sebuah buku elektronik (e-book) modul Informatika akan didistribusikan agar nyaman dibaca di berbagai ukuran layar ponsel maupun tablet dengan ukuran huruf yang dapat disesuaikan pembaca. Format e-book yang paling tepat digunakan adalah...",
+                options: [
+                    "Format EPUB karena mendukung tata letak mengalir (reflowable) sesuai layar",
+                    "Format PDF hasil pemindaian gambar beresolusi tinggi dengan tata letak terkunci",
+                    "Format DOCX mentah yang masih menampilkan garis koreksi ejaan berwarna merah",
+                    "Format PPTX presentasi yang memerlukan aplikasi penyunting salindia khusus",
+                    "Format TXT polos tanpa dukungan gambar diagram maupun penebalan judul bab"
+                ],
+                answer: 0
+            },
+            {
+                id: 47,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Ketika menyisipkan takarir (subtitle/closed caption) pada video pembelajaran daring, manfaat utama yang diperoleh audiens secara luas adalah...",
+                options: [
+                    "Mengurangi ukuran berkas video hingga separuh dari ukuran penyuntingan awal",
+                    "Membantu pemahaman penonton tunarungu maupun penonton di lingkungan bising",
+                    "Meningkatkan resolusi ketajaman gambar video dari standar menjadi definisi tinggi",
+                    "Menghilangkan kebutuhan pengisian suara narator pada seluruh bagian materi",
+                    "Mempercepat durasi pemutaran video secara otomatis tanpa mengubah nada suara"
+                ],
+                answer: 1
+            },
+            {
+                id: 48,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Dalam pengelolaan proyek produksi konten multimedia bersama empat anggota tim, sistem penamaan dan penyimpanan berkas yang mencegah tertimpanya revisi terbaru adalah...",
+                options: [
+                    "Menyimpan semua revisi dengan nama sama 'Final_Banget.mp4' di satu folder",
+                    "Mengirimkan setiap potongan video mentah melalui pesan obrolan tanpa folder",
+                    "Menerapkan penomoran versi berurutan pada penyimpanan awan terpusat tim",
+                    "Menyimpan hasil penyuntingan hanya di memori internal ponsel masing-masing",
+                    "Menghapus berkas proyek mentah setiap kali selesai mengekspor video pratinjau"
+                ],
+                answer: 2
+            },
+            {
+                id: 49,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Seorang desainer grafis membuat poster kampanye literasi digital dengan menerapkan prinsip ruang kosong (whitespace/negative space). Fungsi utama penerapan ruang kosong dalam tata letak visual adalah...",
+                options: [
+                    "Menghemat pemakaian tinta printer ketika poster dicetak dalam jumlah banyak",
+                    "Menyisakan tempat kosong bagi pembaca untuk menuliskan catatan tambahan",
+                    "Mempercepat waktu pengunduhan berkas gambar melalui jaringan internet lambat",
+                    "Memberi ruang napas visual agar elemen utama poster mudah dibaca dan fokus",
+                    "Mengurangi jumlah kata kunci yang harus ditulis oleh penyusun materi poster"
+                ],
+                answer: 3
+            },
+            {
+                id: 50,
+                theme: "Konten Digital",
+                level: "C3",
+                question: "Sebelum mempublikasikan artikel ulasan teknologi yang memuat klaim perbandingan kecepatan dua perangkat lunak, prosedur kurasi dan validasi konten yang harus diterapkan penulis adalah...",
+                options: [
+                    "Mengutip komentar anonim dari forum daring tanpa melakukan pengujian ulang",
+                    "Menggunakan hasil pengujian lima tahun lalu agar proses penulisan lebih cepat",
+                    "Menuliskan perkiraan angka kecepatan berdasarkan tampilan antarmuka aplikasi",
+                    "Menyalin ringkasan brosur promosi salah satu vendor perangkat lunak terkait",
+                    "Melakukan pengujian terukur dengan parameter sama serta melampirkan datanya"
+                ],
+                answer: 4
+            },
+
+            // ================= TEMA 2: KONTEN DIGITAL — C4 (10 SOAL) =================
+            {
+                id: 51,
+                theme: "Konten Digital",
+                level: "C4",
+                question: "Analisis kasus: Dua video edukasi memiliki kualitas materi yang sama baiknya, namun Video A memperoleh tingkat penyelesaian tonton (watch time) 78% sedangkan Video B hanya 22%. Setelah diaudit, Video B memiliki pembuka bertele-tele dan audio tidak seimbang. Kesimpulan analitis dari data analitik konten tersebut adalah...",
+                options: [
+                    "Struktur penyajian dan kualitas teknis audio sangat menentukan retensi audiens",
+                    "Algoritma platform video hanya merekomendasikan saluran dengan jutaan pengikut",
+                    "Audiens pembelajaran daring tidak menyukai materi edukasi berdurasi lebih semenit",
+                    "Judul video yang menggunakan huruf kapital seluruhnya menjamin penonton bertahan",
+                    "Kualitas isi materi tidak berpengaruh sama sekali terhadap keberhasilan konten"
+                ],
+                answer: 0
+            },
+            {
+                id: 52,
+                theme: "Konten Digital",
+                level: "C4",
+                question: "Banyak kreator konten kini beralih dari mengejar metrik 'jumlah tayangan' (views) semata menuju metrik 'tingkat keterlibatan bermakna' seperti penyimpanan unggahan (saves) dan diskusi komentar. Mengapa metrik penyimpanan dianggap indikator kualitas konten yang lebih kuat?",
+                options: [
+                    "Karena tombol simpan hanya tersedia bagi pengguna yang berlangganan akun berbayar",
+                    "Karena pengguna menyimpan konten yang dinilai bermanfaat untuk dirujuk kembali nanti",
+                    "Karena sistem platform memberikan bonus kuota internet setiap kali konten disimpan",
+                    "Karena jumlah penyimpanan unggahan dapat dimanipulasi lebih mudah daripada tayangan",
+                    "Karena konten yang disimpan otomatis terhapus dari lini masa publik setelah sejam"
+                ],
+                answer: 1
+            },
+            {
+                id: 53,
+                theme: "Konten Digital",
+                level: "C4",
+                question: "Sebuah situs berita daring menggunakan judul umpan klik (clickbait) ekstrem yang isinya bertolak belakang dengan isi artikel sebenarnya. Analisis dampak jangka panjang strategi konten tersebut terhadap kredibilitas media adalah...",
+                options: [
+                    "Meningkatkan loyalitas pembaca setia karena merasa terhibur oleh kejutan judul",
+                    "Memperbaiki peringkat kepercayaan situs di mata institusi pendidikan dan peneliti",
+                    "Menurunkan kepercayaan publik serta meningkatkan rasio pentalan (bounce rate) cepat",
+                    "Menghemat biaya operasional redaksi karena tidak memerlukan penyunting bahasa",
+                    "Mempermudah artikel berita dikutip sebagai sumber referensi utama jurnal ilmiah"
+                ],
+                answer: 2
+            },
+            {
+                id: 54,
+                theme: "Konten Digital",
+                level: "C4",
+                question: "Maraknya konten tiruan berulang (reupload/content farm) yang dibuat secara massal tanpa nilai tambah orisinal mulai membanjiri platform digital. Ancaman utama fenomena tersebut terhadap ekosistem kreator digital adalah...",
+                options: [
+                    "Menurunnya harga perangkat keras kamera dan mikrofon di pasar elektronik lokal",
+                    "Meningkatnya kapasitas penyimpanan gratis yang disediakan penyedia layanan awan",
+                    "Mempermudah pengguna menemukan karya asli pencipta pertama dalam hasil pencarian",
+                    "Tenggelamnya karya kreator orisinal sehingga melemahkan insentif inovasi kreatif",
+                    "Berkurangnya kebutuhan masyarakat terhadap koneksi internet pita lebar di rumah"
+                ],
+                answer: 3
+            },
+            {
+                id: 55,
+                theme: "Konten Digital",
+                level: "C4",
+                question: "Dalam pembuatan video manipulasi sintetis (deepfake) yang meniru wajah dan suara tokoh publik untuk konten parodi tanpa label keterangan jelas, evaluasi risiko etis paling kritis yang muncul adalah...",
+                options: [
+                    "Ukuran berkas video hasil pemrosesan kecerdasan buatan terlalu besar untuk diunggah",
+                    "Penggunaan daya listrik komputer selama proses rendering video menjadi lebih tinggi",
+                    "Kualitas sinkronisasi gerak bibir pada video belum mampu menyamai rekaman asli",
+                    "Perangkat lunak penyunting video memerlukan pembaruan sistem operasi versi terbaru",
+                    "Kaburnya batas fakta dan rekayasa yang memicu fitnah serta krisis kepercayaan"
+                ],
+                answer: 4
+            },
+            {
+                id: 56,
+                theme: "Konten Digital",
+                level: "C4",
+                question: "Sebuah portal pembelajaran digital merancang konten dalam format mikro-pembelajaran (microlearning) berdurasi 3–5 menit per modul disertai kuis interaktif singkat. Analisis keunggulan pedagogis format konten digital tersebut dibandingkan video rekaman kuliah dua jam penuh adalah...",
+                options: [
+                    "Mengurangi beban kognitif berlebih dan menjaga fokus belajar mandiri lebih efektif",
+                    "Menghilangkan kebutuhan siswa untuk mencatat poin penting maupun berdiskusi",
+                    "Menjamin seluruh siswa memperoleh nilai sempurna tanpa perlu mengulang materi",
+                    "Mengurangi total materi kurikulum yang harus dipelajari selama satu semester",
+                    "Membuat penyusunan materi oleh guru tidak lagi memerlukan rencana pembelajaran"
+                ],
+                answer: 0
+            },
+            {
+                id: 57,
+                theme: "Konten Digital",
+                level: "C4",
+                question: "Ketika seorang kreator mengunggah karya musik aransemen ulang (cover) ke platform streaming tanpa izin pemegang hak cipta komposisi asli, sistem Content ID otomatis memblokir atau mengalihkan monetisasi video. Mekanisme tersebut menunjukkan bagaimana teknologi digital bekerja untuk...",
+                options: [
+                    "Menghapus seluruh saluran kreator pemula yang baru mengunggah karya pertama",
+                    "Mendeteksi sidik jari audio digital guna melindungi hak ekonomi pemilik karya",
+                    "Mengubah secara otomatis aransemen musik menjadi instrumen klasik tanpa vokal",
+                    "Membatasi jumlah pendengar lagu pada wilayah negara tertentu selama satu tahun",
+                    "Menurunkan kualitas audio unggahan menjadi mono agar tidak melanggar aturan"
+                ],
+                answer: 1
+            },
+            {
+                id: 58,
+                theme: "Konten Digital",
+                level: "C4",
+                question: "Perhatikan perbandingan dua pendekatan konten merek: Merek X hanya mengunggah katalog diskon setiap hari, sementara Merek Y rutin membagikan konten edukasi pemecahan masalah audiens (content marketing). Mengapa pendekatan Merek Y lebih berkelanjutan dalam membangun komunitas pelanggan?",
+                options: [
+                    "Karena konten edukasi tidak memerlukan biaya produksi maupun riset topik pasar",
+                    "Karena platform media sosial melarang akun bisnis mengunggah informasi harga",
+                    "Karena pemberian nilai manfaat membangun hubungan kepercayaan sebelum transaksi",
+                    "Karena pelanggan tidak lagi membandingkan harga produk jika sudah melihat video",
+                    "Karena konten katalog diskon selalu dianggap sebagai pesan sampah oleh sistem"
+                ],
+                answer: 2
+            },
+            {
+                id: 59,
+                theme: "Konten Digital",
+                level: "C4",
+                question: "Banyak situs web media kini menerapkan sistem dinding berbayar (paywall) untuk artikel investigasi mendalam, sementara berita ringan tetap gratis. Analisis dilema akses informasi digital dari model bisnis konten tersebut adalah...",
+                options: [
+                    "Jurnalisme investigasi menjadi lebih mudah disalin bebas oleh situs agregator",
+                    "Biaya perawatan server situs web menjadi nol karena jumlah pembaca berkurang",
+                    "Pembaca gratis memperoleh akses lebih cepat terhadap laporan keuangan eksklusif",
+                    "Terciptanya kesenjangan akses informasi bermutu berdasarkan kemampuan ekonomi",
+                    "Seluruh iklan komersial otomatis hilang dari halaman utama situs berita daring"
+                ],
+                answer: 3
+            },
+            {
+                id: 60,
+                theme: "Konten Digital",
+                level: "C4",
+                question: "Dalam tren konsumsi konten digital lintas platform (transmedia storytelling), sebuah cerita atau kampanye edukasi dikembangkan melalui komik web, siniar diskusi, dan gim mini interaktif secara saling melengkapi. Analisis keunggulan strategi transmedia dibandingkan sekadar menyalin konten identik ke semua platform adalah...",
+                options: [
+                    "Tim produksi cukup membuat satu berkas tunggal tanpa menyesuaikan ukuran layar",
+                    "Biaya distribusi konten menjadi gratis sepenuhnya pada seluruh jaringan iklan",
+                    "Pengguna tidak perlu membuat akun pada platform mana pun untuk mengakses materi",
+                    "Seluruh platform media sosial memiliki format rasio gambar dan durasi yang sama",
+                    "Setiap platform dimanfaatkan sesuai kekuatan medianya sehingga memperkaya pengalaman"
+                ],
+                answer: 4
+            }
+        ];
+
+        /**
+         * =========================================================================
+         * 2. MANAJEMEN FULL SCREEN & ANTI-CURANG (FULLSCREEN / VISIBILITY GUARD)
+         * =========================================================================
+         */
+        function isCurrentlyFullScreen() {
+            return !!(
+                document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullScreenElement ||
+                document.msFullscreenElement
+            );
+        }
+
+        function requestFullScreenSafe() {
+            try {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) {
+                    const promise = elem.requestFullscreen();
+                    if (promise && typeof promise.catch === 'function') {
+                        promise.catch(err => {
+                            console.warn('Info Fullscreen API:', err.message);
+                        });
+                    }
+                } else if (elem.webkitRequestFullscreen) {
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) {
+                    elem.msRequestFullscreen();
+                }
+            } catch (e) {
+                console.warn('Fullscreen tidak didukung di lingkungan ini:', e);
+            }
+        }
+
+        function exitFullScreenSafe() {
+            try {
+                if (isCurrentlyFullScreen()) {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen().catch(() => {});
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    } else if (document.msExitFullscreen) {
+                        document.msExitFullscreen();
+                    }
+                }
+            } catch (e) {
+                console.warn('Exit fullscreen info:', e);
+            }
+        }
+
+        function toggleFullScreen() {
+            if (!isCurrentlyFullScreen()) {
+                requestFullScreenSafe();
+            } else {
+                exitFullScreenSafe();
+            }
+        }
+
+        function updateFullscreenButtonUI() {
+            const icon = document.getElementById('iconFullscreen');
+            const text = document.getElementById('textFullscreen');
+            if (!icon || !text) return;
+
+            if (isCurrentlyFullScreen()) {
+                icon.className = 'fa-solid fa-compress text-emerald-400';
+                text.textContent = 'Keluar Full Screen';
+            } else {
+                icon.className = 'fa-solid fa-expand text-sky-400';
+                text.textContent = 'Full Screen';
+            }
+        }
+
+        function recordExamViolation(reason) {
+            if (!examState.active) return;
+            examState.violations++;
+            const badge = document.getElementById('violationCountBadge');
+            if (badge) {
+                badge.textContent = `${examState.violations}x`;
+                badge.className = 'text-rose-600 font-extrabold';
+            }
+            const guardCount = document.getElementById('guardViolationCount');
+            if (guardCount) {
+                guardCount.textContent = examState.violations;
+            }
+            const guardModal = document.getElementById('modalFullscreenGuard');
+            if (guardModal) {
+                guardModal.classList.remove('hidden');
+                guardModal.classList.add('flex');
+            }
+        }
+
+        function resumeFullScreenFromGuard() {
+            const guardModal = document.getElementById('modalFullscreenGuard');
+            if (guardModal) {
+                guardModal.classList.add('hidden');
+                guardModal.classList.remove('flex');
+            }
+            requestFullScreenSafe();
+        }
+
+        // Listener perubahan status Full Screen
+        ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => {
+            document.addEventListener(evt, () => {
+                updateFullscreenButtonUI();
+                // Jika ujian aktif dan siswa keluar dari mode fullscreen
+                if (examState.active && !isCurrentlyFullScreen() && examState.enteredFullscreenAtLeastOnce) {
+                    recordExamViolation('Keluar dari mode Full Screen');
+                }
+                if (isCurrentlyFullScreen()) {
+                    examState.enteredFullscreenAtLeastOnce = true;
+                }
+            });
+        });
+
+        // Listener perpindahan tab / minimize browser saat ujian aktif
+        document.addEventListener('visibilitychange', () => {
+            if (examState.active && document.hidden) {
+                recordExamViolation('Berpindah tab atau menyembunyikan jendela ujian');
+            }
+        });
+
+        /**
+         * =========================================================================
+         * 3. DATABASE SQLITE (sql.js WebAssembly + Sinkronisasi LocalStorage)
+         * =========================================================================
+         */
+        let db = null;
+        let isSqliteReady = false;
+        const SQLITE_STORAGE_KEY = 'cbt_informatika_sqlite_db_v2';
+        const FALLBACK_STORAGE_KEY = 'cbt_informatika_fallback_rows_v2';
+
+        async function initSQLiteDatabase() {
+            const dot = document.getElementById('sqliteDot');
+            const text = document.getElementById('sqliteStatusText');
+            try {
+                if (typeof initSqlJs !== 'function') {
+                    throw new Error('CDN sql.js belum termuat');
+                }
+                const SQL = await initSqlJs({
+                    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+                });
+
+                const savedDbBase64 = localStorage.getItem(SQLITE_STORAGE_KEY);
+                if (savedDbBase64) {
+                    const binaryArray = Uint8Array.from(atob(savedDbBase64), c => c.charCodeAt(0));
+                    db = new SQL.Database(binaryArray);
+                } else {
+                    db = new SQL.Database();
+                }
+
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS hasil_ujian (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        nama TEXT NOT NULL,
+                        nis TEXT NOT NULL,
+                        kelas TEXT NOT NULL,
+                        waktu_mulai TEXT NOT NULL,
+                        waktu_selesai TEXT NOT NULL,
+                        durasi_detik INTEGER NOT NULL,
+                        benar INTEGER NOT NULL,
+                        salah INTEGER NOT NULL,
+                        kosong INTEGER NOT NULL,
+                        skor_total REAL NOT NULL,
+                        skor_medsos REAL NOT NULL,
+                        skor_konten REAL NOT NULL,
+                        pelanggaran INTEGER DEFAULT 0,
+                        detail_jawaban_json TEXT
+                    );
+                `);
+
+                // Sinkronkan jika ada data fallback yang tersimpan sebelum SQLite siap
+                const pendingFallback = JSON.parse(localStorage.getItem(FALLBACK_STORAGE_KEY) || '[]');
+                if (pendingFallback.length > 0) {
+                    pendingFallback.forEach(item => insertRowIntoSQLiteOnly(item));
+                    localStorage.removeItem(FALLBACK_STORAGE_KEY);
+                }
+
+                persistSQLiteToLocalStorage();
+                isSqliteReady = true;
+                if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+                if (text) text.textContent = 'SQLite Aktif';
+            } catch (err) {
+                console.warn('Mode Fallback LocalStorage aktif:', err);
+                isSqliteReady = false;
+                if (dot) dot.className = 'w-2 h-2 rounded-full bg-sky-400';
+                if (text) text.textContent = 'Storage Lokal Siap';
+            }
+        }
+
+        function persistSQLiteToLocalStorage() {
+            if (!db) return;
+            try {
+                const binary = db.export();
+                let str = '';
+                const bytes = new Uint8Array(binary);
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    str += String.fromCharCode(bytes[i]);
+                }
+                localStorage.setItem(SQLITE_STORAGE_KEY, btoa(str));
+            } catch (e) {
+                console.error('Gagal menyimpan biner SQLite:', e);
+            }
+        }
+
+        function insertRowIntoSQLiteOnly(record) {
+            const stmt = db.prepare(`
+                INSERT INTO hasil_ujian (
+                    nama, nis, kelas, waktu_mulai, waktu_selesai, durasi_detik,
+                    benar, salah, kosong, skor_total, skor_medsos, skor_konten,
+                    pelanggaran, detail_jawaban_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            stmt.run([
+                record.nama,
+                record.nis,
+                record.kelas,
+                record.waktu_mulai,
+                record.waktu_selesai,
+                record.durasi_detik,
+                record.benar,
+                record.salah,
+                record.kosong,
+                record.skor_total,
+                record.skor_medsos,
+                record.skor_konten,
+                record.pelanggaran || 0,
+                record.detail_jawaban_json || '{}'
+            ]);
+            stmt.free();
+        }
+
+        function saveExamResult(record) {
+            if (isSqliteReady && db) {
+                insertRowIntoSQLiteOnly(record);
+                persistSQLiteToLocalStorage();
+            } else {
+                const list = JSON.parse(localStorage.getItem(FALLBACK_STORAGE_KEY) || '[]');
+                record.id = Date.now();
+                list.push(record);
+                localStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(list));
+            }
+        }
+
+        function getAllExamResults() {
+            if (isSqliteReady && db) {
+                const res = db.exec("SELECT * FROM hasil_ujian ORDER BY id DESC");
+                if (!res.length) return [];
+                const cols = res[0].columns;
+                return res[0].values.map(row => {
+                    const obj = {};
+                    cols.forEach((c, i) => obj[c] = row[i]);
+                    return obj;
+                });
+            } else {
+                return JSON.parse(localStorage.getItem(FALLBACK_STORAGE_KEY) || '[]').reverse();
+            }
+        }
+
+        function deleteExamResultById(id) {
+            if (isSqliteReady && db) {
+                db.run("DELETE FROM hasil_ujian WHERE id = ?", [id]);
+                persistSQLiteToLocalStorage();
+            } else {
+                let list = JSON.parse(localStorage.getItem(FALLBACK_STORAGE_KEY) || '[]');
+                list = list.filter(r => r.id !== id);
+                localStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(list));
+            }
+            renderAdminTable();
+            showToast('Rekaman hasil ujian berhasil dihapus.', 'info');
+        }
+
+        function resetAllDatabase() {
+            if (isSqliteReady && db) {
+                db.run("DELETE FROM hasil_ujian");
+                db.run("DELETE FROM sqlite_sequence WHERE name='hasil_ujian'");
+                persistSQLiteToLocalStorage();
+            }
+            localStorage.removeItem(FALLBACK_STORAGE_KEY);
+            closeResetDbModal();
+            renderAdminTable();
+            showToast('Seluruh database hasil ujian berhasil dikosongkan.', 'success');
+        }
+
+        /**
+         * =========================================================================
+         * 4. LOGIKA UJIAN CBT (PENGACAKAN SINKRON, TAMPIL SOAL, PENILAIAN)
+         * =========================================================================
+         */
+        const EXAM_TOKEN = 'INF2026';
+
+        let examState = {
+            active: false,
+            enteredFullscreenAtLeastOnce: false,
+            student: { nama: '', nis: '', kelas: '' },
+            startTimeStr: '',
+            questions: [],
+            answers: {},      // { questionIndex: selectedOptionIndex }
+            doubts: {},       // { questionIndex: boolean }
+            currentIndex: 0,
+            totalSeconds: 90 * 60,
+            remainingSeconds: 90 * 60,
+            violations: 0,
+            timerInterval: null,
+            fontSize: 'md'
+        };
+
+        function fillTokenQuick() {
+            const tokenInput = document.getElementById('inputToken');
+            if (tokenInput) {
+                tokenInput.value = EXAM_TOKEN;
+                document.getElementById('tokenErrorMsg').classList.add('hidden');
+                showToast('Token ujian INF2026 telah diisikan.', 'info');
+            }
+        }
+
+        // Fisher-Yates Shuffle
+        function shuffleArray(items) {
+            const arr = [...items];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        // Acak 60 soal dan acak 5 opsi pilihan ganda pada tiap soal secara sinkron
+        function buildShuffledExamQuestions() {
+            const randomizedQuestions = shuffleArray(QUESTION_BANK);
+            return randomizedQuestions.map((item, idx) => {
+                const mappedOptions = item.options.map((optText, optIndex) => ({
+                    text: optText,
+                    isKey: optIndex === item.answer
+                }));
+                const randomizedOptions = shuffleArray(mappedOptions);
+                const newKeyIndex = randomizedOptions.findIndex(o => o.isKey);
+
+                return {
+                    no: idx + 1,
+                    id: item.id,
+                    theme: item.theme,
+                    level: item.level,
+                    question: item.question,
+                    options: randomizedOptions.map(o => o.text),
+                    correctIndex: newKeyIndex
+                };
+            });
+        }
+
+        // Handler Submit Identitas -> Langsung Masuk Ruang Ujian & Full Screen
+        function handleStartExam(event) {
+            event.preventDefault();
+
+            const nama = document.getElementById('inputNama').value.trim();
+            const nis = document.getElementById('inputNis').value.trim();
+            const kelas = document.getElementById('inputKelas').value;
+            const token = document.getElementById('inputToken').value.trim().toUpperCase();
+            const tokenErr = document.getElementById('tokenErrorMsg');
+
+            if (!nama || !nis || !kelas) {
+                showToast('Harap lengkapi Nama Lengkap, NIS, dan Kelas!', 'error');
+                return;
+            }
+
+            if (token !== EXAM_TOKEN) {
+                tokenErr.classList.remove('hidden');
+                showToast('Token ujian salah! Masukkan token INF2026.', 'error');
+                return;
+            }
+            tokenErr.classList.add('hidden');
+
+            // 1. Panggil Full Screen dalam konteks gesture klik tombol submit
+            requestFullScreenSafe();
+
+            // 2. Siapkan state ujian secara sinkron tanpa menunggu proses asinkron apa pun
+            const nowStr = new Date().toLocaleString('id-ID', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+
+            examState = {
+                active: true,
+                enteredFullscreenAtLeastOnce: isCurrentlyFullScreen(),
+                student: { nama, nis, kelas },
+                startTimeStr: nowStr,
+                questions: buildShuffledExamQuestions(),
+                answers: {},
+                doubts: {},
+                currentIndex: 0,
+                totalSeconds: 90 * 60,
+                remainingSeconds: 90 * 60,
+                violations: 0,
+                timerInterval: null,
+                fontSize: 'md'
+            };
+
+            // 3. Perbarui informasi peserta pada layar ujian
+            document.getElementById('avatarInitial').textContent = nama.charAt(0).toUpperCase();
+            document.getElementById('displayStudentName').textContent = nama;
+            document.getElementById('displayStudentMeta').textContent = `NIS: ${nis}  •  Kelas: ${kelas}`;
+            document.getElementById('violationCountBadge').textContent = '0x';
+            document.getElementById('violationCountBadge').className = 'text-slate-700';
+
+            // 4. Sembunyikan login-screen & tampilkan exam-screen
+            showOnlyScreen('exam-screen');
+            document.getElementById('btnOpenAdminLogin').classList.add('hidden');
+
+            // 5. Render navigasi 60 soal, soal nomor 1, dan mulai timer
+            renderQuestionNavGrid();
+            renderCurrentQuestion();
+            startExamTimer();
+
+            showToast('Ujian dimulai! 60 soal dan pilihan jawaban telah diacak.', 'success');
+        }
+
+        function startExamTimer() {
+            if (examState.timerInterval) clearInterval(examState.timerInterval);
+            updateTimerUI();
+
+            examState.timerInterval = setInterval(() => {
+                examState.remainingSeconds--;
+                updateTimerUI();
+
+                if (examState.remainingSeconds <= 0) {
+                    clearInterval(examState.timerInterval);
+                    showToast('Waktu ujian habis! Jawaban otomatis dikumpulkan.', 'warning');
+                    finishExam();
+                }
+            }, 1000);
+        }
+
+        function updateTimerUI() {
+            const m = Math.floor(examState.remainingSeconds / 60);
+            const s = examState.remainingSeconds % 60;
+            const display = document.getElementById('timerDisplay');
+            const box = document.getElementById('timerBox');
+
+            if (display) {
+                display.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            }
+            if (box) {
+                if (examState.remainingSeconds <= 300) {
+                    box.classList.remove('bg-slate-900', 'border-slate-800');
+                    box.classList.add('bg-rose-600', 'timer-warning');
+                } else {
+                    box.classList.add('bg-slate-900', 'border-slate-800');
+                    box.classList.remove('bg-rose-600', 'timer-warning');
+                }
+            }
+        }
+
+        function setQuestionFontSize(size) {
+            examState.fontSize = size;
+            ['sm', 'md', 'lg'].forEach(sz => {
+                const btn = document.getElementById(`fontBtn-${sz}`);
+                if (!btn) return;
+                if (sz === size) {
+                    btn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-indigo-700 shadow-sm transition';
+                } else {
+                    btn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 hover:bg-white transition';
+                }
+            });
+            renderCurrentQuestion();
+        }
+
+        function renderCurrentQuestion() {
+            const idx = examState.currentIndex;
+            const q = examState.questions[idx];
+            if (!q) return;
+
+            const letters = ['A', 'B', 'C', 'D', 'E'];
+            document.getElementById('currentQuestionNum').textContent = idx + 1;
+            document.getElementById('questionTopicBadge').textContent = q.theme;
+
+            const lvlBadge = document.getElementById('questionLevelBadge');
+            if (q.level === 'C3') {
+                lvlBadge.textContent = 'Level C3 (Aplikasi)';
+                lvlBadge.className = 'bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold px-3 py-1 rounded-full';
+            } else {
+                lvlBadge.textContent = 'Level C4 (Analisis)';
+                lvlBadge.className = 'bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold px-3 py-1 rounded-full';
+            }
+
+            // Ukuran font teks soal & opsi
+            const qTextEl = document.getElementById('questionText');
+            const fontClasses = {
+                sm: 'text-sm leading-relaxed',
+                md: 'text-base sm:text-[17px] leading-relaxed',
+                lg: 'text-lg sm:text-xl leading-relaxed'
+            };
+            const optFontClasses = {
+                sm: 'text-xs sm:text-sm',
+                md: 'text-sm sm:text-[15px]',
+                lg: 'text-base sm:text-[17px]'
+            };
+
+            qTextEl.className = `text-slate-800 font-medium mb-6 select-none ${fontClasses[examState.fontSize]}`;
+            qTextEl.textContent = q.question;
+
+            // Render opsi jawaban A - E
+            const optionsContainer = document.getElementById('optionsContainer');
+            optionsContainer.innerHTML = '';
+
+            q.options.forEach((optText, optIdx) => {
+                const isSelected = examState.answers[idx] === optIdx;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.onclick = () => selectOption(optIdx);
+
+                btn.className = `option-card w-full text-left p-4 rounded-2xl border-2 flex items-start gap-3.5 ${
+                    isSelected ? 'option-selected' : 'border-slate-200 bg-white'
+                }`;
+
+                btn.innerHTML = `
+                    <span class="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-sm transition ${
+                        isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
+                    }">${letters[optIdx]}</span>
+                    <span class="${optFontClasses[examState.fontSize]} leading-relaxed pt-1 ${
+                        isSelected ? 'text-indigo-950 font-semibold' : 'text-slate-700'
+                    }">${optText}</span>
+                `;
+                optionsContainer.appendChild(btn);
+            });
+
+            // Status checkbox ragu-ragu
+            const isDoubt = !!examState.doubts[idx];
+            document.getElementById('checkboxDoubt').checked = isDoubt;
+
+            // Tombol navigasi Sebelumnya / Selanjutnya / Selesai
+            document.getElementById('btnPrev').disabled = idx === 0;
+            if (idx === examState.questions.length - 1) {
+                document.getElementById('btnNext').classList.add('hidden');
+                document.getElementById('btnFinishEarly').classList.remove('hidden');
+                document.getElementById('btnFinishEarly').classList.add('flex');
+            } else {
+                document.getElementById('btnNext').classList.remove('hidden');
+                document.getElementById('btnFinishEarly').classList.add('hidden');
+                document.getElementById('btnFinishEarly').classList.remove('flex');
+            }
+
+            // Update counter terjawab & grid nomor
+            document.getElementById('answeredCountHeader').textContent = Object.keys(examState.answers).length;
+            renderQuestionNavGrid();
+        }
+
+        function selectOption(optIdx) {
+            examState.answers[examState.currentIndex] = optIdx;
+            renderCurrentQuestion();
+        }
+
+        function toggleDoubt() {
+            const idx = examState.currentIndex;
+            examState.doubts[idx] = !examState.doubts[idx];
+            renderCurrentQuestion();
+        }
+
+        function prevQuestion() {
+            if (examState.currentIndex > 0) {
+                examState.currentIndex--;
+                renderCurrentQuestion();
+            }
+        }
+
+        function nextQuestion() {
+            if (examState.currentIndex < examState.questions.length - 1) {
+                examState.currentIndex++;
+                renderCurrentQuestion();
+            }
+        }
+
+        function goToQuestion(idx) {
+            examState.currentIndex = idx;
+            renderCurrentQuestion();
+        }
+
+        function renderQuestionNavGrid() {
+            const grid = document.getElementById('questionNavGrid');
+            grid.innerHTML = '';
+
+            examState.questions.forEach((_, idx) => {
+                const isCurrent = idx === examState.currentIndex;
+                const isAnswered = examState.answers[idx] !== undefined;
+                const isDoubt = !!examState.doubts[idx];
+
+                let classes = 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100';
+                if (isDoubt) {
+                    classes = 'bg-amber-400 border-amber-500 text-slate-900';
+                } else if (isAnswered) {
+                    classes = 'bg-emerald-500 border-emerald-600 text-white';
+                }
+                if (isCurrent) {
+                    classes += ' ring-2 ring-indigo-600 ring-offset-1 font-extrabold';
+                }
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.onclick = () => goToQuestion(idx);
+                btn.className = `h-9 rounded-lg border font-bold text-xs transition flex items-center justify-center ${classes}`;
+                btn.textContent = idx + 1;
+                grid.appendChild(btn);
+            });
+        }
+
+        function openConfirmFinishModal() {
+            const total = examState.questions.length;
+            const answered = Object.keys(examState.answers).length;
+            const doubt = Object.values(examState.doubts).filter(Boolean).length;
+            const unanswered = total - answered;
+
+            document.getElementById('confirmAnsweredCount').textContent = `${answered} Soal`;
+            document.getElementById('confirmDoubtCount').textContent = `${doubt} Soal`;
+            document.getElementById('confirmUnansweredCount').textContent = `${unanswered} Soal`;
+
+            const modal = document.getElementById('modalConfirmFinish');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeConfirmFinishModal() {
+            const modal = document.getElementById('modalConfirmFinish');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // Selesaikan Ujian, Hitung Skor, Simpan ke SQLite & Tampilkan di Layar Siswa
+        function finishExam() {
+            closeConfirmFinishModal();
+            document.getElementById('modalFullscreenGuard').classList.add('hidden');
+            document.getElementById('modalFullscreenGuard').classList.remove('flex');
+
+            if (examState.timerInterval) clearInterval(examState.timerInterval);
+            examState.active = false;
+            exitFullScreenSafe();
+
+            const total = examState.questions.length;
+            let benar = 0;
+            let terjawab = 0;
+
+            // Rincian tema & level kognitif
+            let medsosBenar = 0, medsosTotal = 0;
+            let kontenBenar = 0, kontenTotal = 0;
+            const breakdown = {
+                'Pengaruh Media Sosial (C3)': { correct: 0, total: 0 },
+                'Pengaruh Media Sosial (C4)': { correct: 0, total: 0 },
+                'Konten Digital (C3)': { correct: 0, total: 0 },
+                'Konten Digital (C4)': { correct: 0, total: 0 }
+            };
+
+            const reviewDetails = [];
+
+            examState.questions.forEach((q, idx) => {
+                const key = `${q.theme} (${q.level})`;
+                if (breakdown[key]) breakdown[key].total++;
+
+                if (q.theme === 'Pengaruh Media Sosial') medsosTotal++;
+                else kontenTotal++;
+
+                const userAns = examState.answers[idx];
+                const isAnswered = userAns !== undefined;
+                const isCorrect = isAnswered && userAns === q.correctIndex;
+
+                if (isAnswered) terjawab++;
+                if (isCorrect) {
+                    benar++;
+                    if (breakdown[key]) breakdown[key].correct++;
+                    if (q.theme === 'Pengaruh Media Sosial') medsosBenar++;
+                    else kontenBenar++;
+                }
+
+                reviewDetails.push({
+                    no: idx + 1,
+                    id: q.id,
+                    theme: q.theme,
+                    level: q.level,
+                    question: q.question,
+                    userAnswerText: isAnswered ? q.options[userAns] : '(Tidak Dijawab)',
+                    correctAnswerText: q.options[q.correctIndex],
+                    isCorrect
+                });
+            });
+
+            const kosong = total - terjawab;
+            const salah = terjawab - benar;
+            const skorTotal = Number(((benar / total) * 100).toFixed(2));
+            const skorMedsos = medsosTotal > 0 ? Number(((medsosBenar / medsosTotal) * 100).toFixed(1)) : 0;
+            const skorKonten = kontenTotal > 0 ? Number(((kontenBenar / kontenTotal) * 100).toFixed(1)) : 0;
+            const durasiDetik = examState.totalSeconds - examState.remainingSeconds;
+
+            const endTimeStr = new Date().toLocaleString('id-ID', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+
+            const record = {
+                nama: examState.student.nama,
+                nis: examState.student.nis,
+                kelas: examState.student.kelas,
+                waktu_mulai: examState.startTimeStr,
+                waktu_selesai: endTimeStr,
+                durasi_detik: durasiDetik,
+                benar,
+                salah,
+                kosong,
+                skor_total: skorTotal,
+                skor_medsos: skorMedsos,
+                skor_konten: skorKonten,
+                pelanggaran: examState.violations,
+                detail_jawaban_json: JSON.stringify({ breakdown, reviewDetails })
+            };
+
+            saveExamResult(record);
+            renderStudentResultScreen(record, breakdown, reviewDetails);
+
+            showOnlyScreen('result-screen');
+            document.getElementById('btnOpenAdminLogin').classList.remove('hidden');
+            showToast('Ujian selesai! Nilai akhir Anda telah disimpan ke database SQLite.', 'success');
+        }
+
+        function renderStudentResultScreen(record, breakdown, reviewDetails) {
+            document.getElementById('resNama').textContent = record.nama;
+            document.getElementById('resNis').textContent = record.nis;
+            document.getElementById('resKelas').textContent = record.kelas;
+            document.getElementById('resTimestamp').textContent = record.waktu_selesai;
+
+            const mins = Math.floor(record.durasi_detik / 60);
+            const secs = record.durasi_detik % 60;
+            document.getElementById('resDuration').textContent = `${mins} menit ${secs} detik`;
+            document.getElementById('resViolations').textContent = `${record.pelanggaran} kali`;
+
+            document.getElementById('resultScoreBig').textContent = record.skor_total;
+            document.getElementById('resCorrect').textContent = record.benar;
+            document.getElementById('resWrong').textContent = record.salah;
+            document.getElementById('resUnanswered').textContent = record.kosong;
+
+            const predEl = document.getElementById('resultPredicate');
+            const scoreEl = document.getElementById('resultScoreBig');
+            if (record.skor_total >= 90) {
+                scoreEl.className = 'text-4xl sm:text-5xl font-black text-emerald-600';
+                predEl.className = 'text-xs font-bold mt-1 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 inline-block';
+                predEl.textContent = 'Sangat Baik (Tuntas)';
+            } else if (record.skor_total >= 75) {
+                scoreEl.className = 'text-4xl sm:text-5xl font-black text-indigo-700';
+                predEl.className = 'text-xs font-bold mt-1 px-3 py-0.5 rounded-full bg-indigo-100 text-indigo-800 inline-block';
+                predEl.textContent = 'Tuntas (KKM 75)';
+            } else {
+                scoreEl.className = 'text-4xl sm:text-5xl font-black text-rose-600';
+                predEl.className = 'text-xs font-bold mt-1 px-3 py-0.5 rounded-full bg-rose-100 text-rose-800 inline-block';
+                predEl.textContent = 'Belum Tuntas (< 75)';
+            }
+
+            // Render Breakdown per Tema & Level
+            const breakdownContainer = document.getElementById('topicBreakdownContainer');
+            breakdownContainer.innerHTML = '';
+            Object.entries(breakdown).forEach(([label, stat]) => {
+                const pct = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0;
+                const card = document.createElement('div');
+                card.className = 'p-4 rounded-2xl border border-slate-200 bg-slate-50';
+                card.innerHTML = `
+                    <div class="flex items-center justify-between text-xs font-bold text-slate-700 mb-2">
+                        <span>${label}</span>
+                        <span class="text-indigo-700">${stat.correct}/${stat.total} Benar (${pct}%)</span>
+                    </div>
+                    <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div class="h-full bg-indigo-600 rounded-full" style="width: ${pct}%"></div>
+                    </div>
+                `;
+                breakdownContainer.appendChild(card);
+            });
+
+            // Render Review 60 Jawaban Siswa
+            const reviewContainer = document.getElementById('studentReviewContainer');
+            reviewContainer.innerHTML = reviewDetails.map(item => `
+                <div class="py-3 flex items-start justify-between gap-3">
+                    <div>
+                        <div class="font-bold text-slate-800">
+                            No. ${item.no} <span class="text-[11px] font-normal text-slate-500">(${item.theme} • ${item.level})</span>
+                        </div>
+                        <p class="text-slate-600 mt-0.5">${item.question}</p>
+                        <div class="mt-1 text-[11px]">
+                            <span class="text-slate-500">Jawaban Anda:</span>
+                            <strong class="${item.isCorrect ? 'text-emerald-700' : 'text-rose-700'}">${item.userAnswerText}</strong>
+                        </div>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-lg font-bold shrink-0 ${
+                        item.isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                    }">
+                        ${item.isCorrect ? 'Benar' : 'Salah'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        function toggleStudentReview() {
+            const box = document.getElementById('studentReviewContainer');
+            const chev = document.getElementById('reviewChevron');
+            box.classList.toggle('hidden');
+            chev.classList.toggle('rotate-180');
+        }
+
+        function backToHome() {
+            document.getElementById('studentLoginForm').reset();
+            document.getElementById('inputToken').value = EXAM_TOKEN;
+            showOnlyScreen('login-screen');
+        }
+
+        /**
+         * =========================================================================
+         * 5. PANEL ADMIN (PASSWORD: R@tna74***) & EKSPOR EXCEL/CSV + SQLITE
+         * =========================================================================
+         */
+        const ADMIN_PASS = 'R@tna74***';
+        let isAdminLoggedIn = false;
+
+        function openAdminModal() {
+            if (isAdminLoggedIn) {
+                openAdminDashboard();
+                return;
+            }
+            document.getElementById('adminPasswordInput').value = '';
+            document.getElementById('adminLoginError').classList.add('hidden');
+            const modal = document.getElementById('modalAdminLogin');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => document.getElementById('adminPasswordInput').focus(), 100);
+        }
+
+        function closeAdminModal() {
+            const modal = document.getElementById('modalAdminLogin');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function toggleAdminPassVisibility() {
+            const input = document.getElementById('adminPasswordInput');
+            const eye = document.getElementById('adminPassEye');
+            if (input.type === 'password') {
+                input.type = 'text';
+                eye.className = 'fa-regular fa-eye-slash';
+            } else {
+                input.type = 'password';
+                eye.className = 'fa-regular fa-eye';
+            }
+        }
+
+        function handleAdminLogin(e) {
+            e.preventDefault();
+            const pass = document.getElementById('adminPasswordInput').value;
+            if (pass === ADMIN_PASS) {
+                isAdminLoggedIn = true;
+                closeAdminModal();
+                openAdminDashboard();
+                showToast('Berhasil masuk sebagai Administrator.', 'success');
+            } else {
+                document.getElementById('adminLoginError').classList.remove('hidden');
+            }
+        }
+
+        function openAdminDashboard() {
+            showOnlyScreen('admin-screen');
+            document.getElementById('btnOpenAdminLogin').classList.add('hidden');
+            document.getElementById('btnBackHomeHeader').classList.remove('hidden');
+            document.getElementById('btnBackHomeHeader').classList.add('flex');
+            renderAdminTable();
+            renderAuditQuestions();
+        }
+
+        function logoutAdmin() {
+            isAdminLoggedIn = false;
+            document.getElementById('btnOpenAdminLogin').classList.remove('hidden');
+            document.getElementById('btnBackHomeHeader').classList.add('hidden');
+            document.getElementById('btnBackHomeHeader').classList.remove('flex');
+            showOnlyScreen('login-screen');
+            showToast('Keluar dari Panel Admin.', 'info');
+        }
+
+        function switchAdminTab(tab) {
+            const tabRes = document.getElementById('adminTabResults');
+            const tabAud = document.getElementById('adminTabAudit');
+            const btnRes = document.getElementById('tabBtnResults');
+            const btnAud = document.getElementById('tabBtnAudit');
+
+            if (tab === 'results') {
+                tabRes.classList.remove('hidden');
+                tabAud.classList.add('hidden');
+                btnRes.className = 'px-5 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition';
+                btnAud.className = 'px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition';
+            } else {
+                tabRes.classList.add('hidden');
+                tabAud.classList.remove('hidden');
+                btnAud.className = 'px-5 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition';
+                btnRes.className = 'px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition';
+            }
+        }
+
+        function renderAdminTable() {
+            const rows = getAllExamResults();
+            const search = document.getElementById('adminSearchInput').value.toLowerCase();
+            const classFilter = document.getElementById('adminClassFilter').value;
+
+            // Statistik keseluruhan
+            document.getElementById('statTotal').textContent = rows.length;
+            if (rows.length > 0) {
+                const scores = rows.map(r => Number(r.skor_total));
+                const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+                document.getElementById('statAvg').textContent = avg;
+                document.getElementById('statMax').textContent = Math.max(...scores);
+                document.getElementById('statMin').textContent = Math.min(...scores);
+            } else {
+                document.getElementById('statAvg').textContent = '0.0';
+                document.getElementById('statMax').textContent = '0';
+                document.getElementById('statMin').textContent = '0';
+            }
+
+            const filtered = rows.filter(r => {
+                const matchText = r.nama.toLowerCase().includes(search) || r.nis.toLowerCase().includes(search);
+                const matchClass = !classFilter || r.kelas === classFilter;
+                return matchText && matchClass;
+            });
+
+            const tbody = document.getElementById('adminResultsTbody');
+            tbody.innerHTML = '';
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="py-10 text-center text-slate-400 text-sm">
+                            <i class="fa-regular fa-folder-open text-2xl block mb-2"></i>
+                            Belum ada data hasil ujian yang tersimpan di database SQLite.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            filtered.forEach((r, idx) => {
+                const scoreBadge = r.skor_total >= 75
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    : 'bg-rose-100 text-rose-800 border-rose-200';
+                const violationBadge = r.pelanggaran > 0
+                    ? `<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">${r.pelanggaran}x</span>`
+                    : `<span class="text-xs text-slate-400">0x</span>`;
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-semibold text-slate-500">${idx + 1}</td>
+                    <td class="py-3 px-4 text-xs font-mono-code text-slate-600">${r.waktu_selesai}</td>
+                    <td class="py-3 px-4 font-mono-code font-semibold text-slate-800">${r.nis}</td>
+                    <td class="py-3 px-4 font-bold text-slate-900">${r.nama}</td>
+                    <td class="py-3 px-4"><span class="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold">${r.kelas}</span></td>
+                    <td class="py-3 px-4 text-center text-xs font-semibold">
+                        <span class="text-emerald-600">${r.benar}</span> / <span class="text-rose-600">${r.salah}</span> / <span class="text-slate-500">${r.kosong}</span>
+                    </td>
+                    <td class="py-3 px-4 text-center text-xs font-semibold text-slate-700">${r.skor_medsos} / ${r.skor_konten}</td>
+                    <td class="py-3 px-4 text-center">
+                        <span class="px-3 py-1 rounded-full border font-extrabold text-xs ${scoreBadge}">${r.skor_total}</span>
+                    </td>
+                    <td class="py-3 px-4 text-center">${violationBadge}</td>
+                    <td class="py-3 px-4 text-center">
+                        <button type="button" onclick="deleteExamResultById(${r.id})" title="Hapus Data" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function insertSimulationData() {
+            const samples = [
+                { nama: 'Aulia Rahmawati', nis: '202610101', kelas: 'X-1', benar: 54, medsos: 93.3, konten: 86.7, durasi: 2780 },
+                { nama: 'Bagas Pratama', nis: '202610114', kelas: 'X-2', benar: 48, medsos: 80.0, konten: 80.0, durasi: 3100 },
+                { nama: 'Citra Lestari', nis: '202610129', kelas: 'XI-1', benar: 57, medsos: 96.7, konten: 93.3, durasi: 2450 },
+                { nama: 'Daffa Kurniawan', nis: '202610142', kelas: 'X-3', benar: 42, medsos: 73.3, konten: 66.7, durasi: 3420 }
+            ];
+            const pick = samples[Math.floor(Math.random() * samples.length)];
+            const salah = 60 - pick.benar;
+            const skor = Number(((pick.benar / 60) * 100).toFixed(2));
+            const nowStr = new Date().toLocaleString('id-ID');
+
+            saveExamResult({
+                nama: pick.nama,
+                nis: pick.nis,
+                kelas: pick.kelas,
+                waktu_mulai: nowStr,
+                waktu_selesai: nowStr,
+                durasi_detik: pick.durasi,
+                benar: pick.benar,
+                salah,
+                kosong: 0,
+                skor_total: skor,
+                skor_medsos: pick.medsos,
+                skor_konten: pick.konten,
+                pelanggaran: 0,
+                detail_jawaban_json: '{}'
+            });
+            renderAdminTable();
+            showToast(`Data simulasi (${pick.nama}) ditambahkan ke database.`, 'success');
+        }
+
+        function exportResultsToCSV() {
+            const rows = getAllExamResults();
+            if (rows.length === 0) {
+                showToast('Belum ada data hasil ujian untuk diunduh.', 'warning');
+                return;
+            }
+
+            let csv = '\uFEFF';
+            csv += 'No;Waktu Mulai;Waktu Selesai;NIS;Nama Siswa;Kelas;Benar;Salah;Kosong;Skor Medsos;Skor Konten Digital;Skor Total;Durasi (Detik);Pelanggaran Layar\n';
+
+            rows.forEach((r, idx) => {
+                csv += [
+                    idx + 1,
+                    `"${r.waktu_mulai}"`,
+                    `"${r.waktu_selesai}"`,
+                    `"${r.nis}"`,
+                    `"${r.nama.replace(/"/g, '""')}"`,
+                    `"${r.kelas}"`,
+                    r.benar,
+                    r.salah,
+                    r.kosong,
+                    String(r.skor_medsos).replace('.', ','),
+                    String(r.skor_konten).replace('.', ','),
+                    String(r.skor_total).replace('.', ','),
+                    r.durasi_detik,
+                    r.pelanggaran
+                ].join(';') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateTag = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `Rekap_Nilai_CBT_Informatika_${dateTag}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('File rekap nilai Excel (.csv) berhasil diunduh.', 'success');
+        }
+
+        function exportSQLiteBinary() {
+            if (!isSqliteReady || !db) {
+                showToast('Database SQLite WebAssembly sedang tidak aktif.', 'error');
+                return;
+            }
+            const binary = db.export();
+            const blob = new Blob([binary], { type: 'application/x-sqlite3' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateTag = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `sqlite_cbt_informatika_${dateTag}.sqlite`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('File database mentah (.sqlite) berhasil diunduh.', 'success');
+        }
+
+        function renderAuditQuestions() {
+            const themeFilter = document.getElementById('auditThemeFilter').value;
+            const levelFilter = document.getElementById('auditLevelFilter').value;
+            const letters = ['A', 'B', 'C', 'D', 'E'];
+
+            // Distribusi kunci jawaban A - E
+            const counts = [0, 0, 0, 0, 0];
+            QUESTION_BANK.forEach(q => counts[q.answer]++);
+            document.getElementById('auditKeySummary').innerHTML = letters.map((l, i) => `
+                <span class="px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-800">
+                    Kunci ${l}: ${counts[i]} soal
+                </span>
+            `).join('');
+
+            const filtered = QUESTION_BANK.filter(q => {
+                const matchT = themeFilter === 'ALL' || q.theme === themeFilter;
+                const matchL = levelFilter === 'ALL' || q.level === levelFilter;
+                return matchT && matchL;
+            });
+
+            const listEl = document.getElementById('auditQuestionsList');
+            listEl.innerHTML = '';
+
+            filtered.forEach(q => {
+                const lengths = q.options.map(o => o.length);
+                const minL = Math.min(...lengths);
+                const maxL = Math.max(...lengths);
+                const keyL = lengths[q.answer];
+
+                const card = document.createElement('div');
+                card.className = 'p-5 rounded-2xl border border-slate-200 bg-slate-50/70';
+                card.innerHTML = `
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white font-bold text-xs">#${q.id}</span>
+                            <span class="px-2.5 py-0.5 rounded-lg bg-indigo-100 text-indigo-800 font-semibold text-xs">${q.theme}</span>
+                            <span class="px-2.5 py-0.5 rounded-lg bg-amber-100 text-amber-800 font-bold text-xs">${q.level}</span>
+                        </div>
+                        <span class="text-[11px] font-mono-code px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                            Kunci: ${keyL} kar | Rentang Opsi: ${minL}–${maxL} kar (Seimbang)
+                        </span>
+                    </div>
+                    <p class="text-sm font-semibold text-slate-900 mb-3">${q.question}</p>
+                    <div class="space-y-1.5">
+                        ${q.options.map((opt, idx) => {
+                            const isKey = idx === q.answer;
+                            return `
+                                <div class="text-xs p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
+                                    isKey
+                                        ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-semibold'
+                                        : 'bg-white border-slate-200 text-slate-700'
+                                }">
+                                    <span><strong>${letters[idx]}.</strong> ${opt}</span>
+                                    <span class="font-mono-code text-[10px] text-slate-400 shrink-0">${opt.length} kar</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        function openResetDbModal() {
+            const m = document.getElementById('modalResetDb');
+            m.classList.remove('hidden');
+            m.classList.add('flex');
+        }
+
+        function closeResetDbModal() {
+            const m = document.getElementById('modalResetDb');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+        }
+
+        /**
+         * =========================================================================
+         * 6. UTILITAS NAVIGASI LAYAR & NOTIFIKASI TOAST
+         * =========================================================================
+         */
+        function showOnlyScreen(screenId) {
+            ['login-screen', 'exam-screen', 'result-screen', 'admin-screen'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            const target = document.getElementById(screenId);
+            if (target) target.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const styles = {
+                success: 'bg-emerald-600 text-white',
+                error: 'bg-rose-600 text-white',
+                warning: 'bg-amber-500 text-slate-950',
+                info: 'bg-slate-800 text-white'
+            };
+            const icons = {
+                success: 'fa-circle-check',
+                error: 'fa-circle-exclamation',
+                warning: 'fa-triangle-exclamation',
+                info: 'fa-circle-info'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `${styles[type] || styles.info} px-4 py-3 rounded-2xl shadow-lg flex items-center gap-3 text-xs sm:text-sm font-medium pointer-events-auto transition duration-200`;
+            toast.innerHTML = `
+                <i class="fa-solid ${icons[type] || icons.info} text-base"></i>
+                <span class="flex-1">${message}</span>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 250);
+            }, 3400);
+        }
+
+        // Jalankan inisialisasi SQLite saat dokumen siap
+        window.addEventListener('DOMContentLoaded', () => {
+            initSQLiteDatabase();
+        });
+    </script>
+</body>
+</html>
